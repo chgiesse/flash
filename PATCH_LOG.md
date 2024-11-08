@@ -3,9 +3,9 @@
 #### 2024-11-08 - Initial Patch
 
 Dash
-- __ _init_ __
+-
+- __ init __
 - init_app
-- _setup_server
 - serve_layout
 - dependencies
 - serve_reload_hash
@@ -14,5 +14,12 @@ Dash
 - enable_dev_tools
 - run 
 - enable_pages
-- _serve_default_favicon
 - index
+- _serve_default_favicon
+- _setup_server
+
+Pages
+- 
+- _create_redirect_function
+- _infer_module_name 
+- _page_meta_tags

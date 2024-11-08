@@ -6,15 +6,16 @@ import sys
 from fnmatch import fnmatch
 from pathlib import Path
 from os.path import isfile, join
-from urllib.parse import parse_qs, unquote
+from urllib.parse import parse_qs
 
-import flask
+import quart
 
 from . import _validate
 from ._utils import AttributeDict
 from ._get_paths import get_relative_path
-from ._callback_context import context_value
 from ._get_app import get_app
+
+from ._callback_context import context_value
 
 
 CONFIG = AttributeDict()
@@ -98,7 +99,7 @@ def _path_to_module_name(path):
 def _infer_module_name(page_path):
     relative_path = page_path.split(CONFIG.pages_folder)[-1]
     module = _path_to_module_name(relative_path)
-    proj_root = flask.helpers.get_root_path(CONFIG.name)
+    proj_root = quart.helpers.get_root_path(CONFIG.name)
     if CONFIG.pages_folder.startswith(proj_root):
         parent_path = CONFIG.pages_folder[len(proj_root) :]
     else:
@@ -113,7 +114,6 @@ def _infer_module_name(page_path):
 
 
 def _parse_query_string(search):
-    search = unquote(search)
     if search and len(search) > 0 and search[0] == "?":
         search = search[1:]
     else:
@@ -154,10 +154,10 @@ def _parse_path_variables(pathname, path_template):
 
 
 def _create_redirect_function(redirect_to):
-    def redirect():
-        return flask.redirect(redirect_to, code=301)
-
+    async def redirect():
+        return quart.redirect(redirect_to, code=301)
     return redirect
+
 
 
 def _set_redirect(redirect_from, path):
@@ -393,14 +393,14 @@ def _path_to_page(path_id):
 
 
 def _page_meta_tags(app):
-    start_page, path_variables = _path_to_page(flask.request.path.strip("/"))
+    start_page, path_variables = _path_to_page(quart.request.path.strip("/"))
 
     # use the supplied image_url or create url based on image in the assets folder
     image = start_page.get("image", "")
     if image:
         image = app.get_asset_url(image)
     assets_image_url = (
-        "".join([flask.request.url_root, image.lstrip("/")]) if image else None
+        "".join([quart.request.url_root, image.lstrip("/")]) if image else None
     )
     supplied_image_url = start_page.get("image_url")
     image_url = supplied_image_url if supplied_image_url else assets_image_url
@@ -416,7 +416,7 @@ def _page_meta_tags(app):
     return [
         {"name": "description", "content": description},
         {"property": "twitter:card", "content": "summary_large_image"},
-        {"property": "twitter:url", "content": flask.request.url},
+        {"property": "twitter:url", "content": quart.request.url},
         {"property": "twitter:title", "content": title},
         {"property": "twitter:description", "content": description},
         {"property": "twitter:image", "content": image_url or ""},

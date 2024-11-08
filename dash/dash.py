@@ -1829,7 +1829,7 @@ class Dash:
             if "_pytest" in sys.modules:
                 from _pytest.assertion.rewrite import (  # pylint: disable=import-outside-toplevel
                     AssertionRewritingHook,
-                ) 
+                )
 
                 for index, package in enumerate(packages):
                     if isinstance(package, AssertionRewritingHook):
@@ -1844,8 +1844,8 @@ class Dash:
                 else os.path.dirname(package.path)
                 if hasattr(package, "path")
                 else os.path.dirname(
-                    package._path[0] # pylint: disable=protected-access
-                 )  
+                    package._path[0]  # pylint: disable=protected-access
+                )
                 if hasattr(package, "_path")
                 else package.filename
                 for package in packages
