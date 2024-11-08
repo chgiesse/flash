@@ -1,3 +1,4 @@
+import asyncio
 import functools
 import os
 import sys
@@ -7,7 +8,6 @@ import warnings
 from contextvars import copy_context
 from importlib.machinery import ModuleSpec
 import pkgutil
-import threading
 import re
 import logging
 import time
@@ -18,7 +18,7 @@ import traceback
 from urllib.parse import urlparse
 from typing import Any, Callable, Dict, Optional, Union, List
 
-import flask
+import quart
 
 from importlib_metadata import version as _get_distribution_version
 
@@ -74,7 +74,7 @@ from ._pages import (
     _path_to_page,
     _import_layouts_from_pages,
 )
-from ._jupyter import jupyter_dash, JupyterDisplayMode
+from ._jupyter import jupyter_dash
 from .types import RendererHooks
 
 # Add explicit mapping for map files
@@ -190,6 +190,14 @@ def _get_traceback(secret, error: Exception):
 
 # Singleton signal to not update an output, alternative to PreventUpdate
 no_update = _callback.NoUpdate()  # pylint: disable=protected-access
+
+
+def exception_handler(context):
+    if "future" in context:
+        # task = context["future"]
+        exception = context["exception"]
+        # Route the exception through sys.excepthook
+        sys.excepthook(exception.__class__, exception, exception.__traceback__)
 
 
 # pylint: disable=too-many-instance-attributes
@@ -380,12 +388,12 @@ class Dash:
     _plotlyjs_url: str
     STARTUP_ROUTES: list = []
 
-    server: flask.Flask
+    server: quart.Quart
 
     def __init__(  # pylint: disable=too-many-statements
         self,
         name: Optional[str] = None,
-        server: Union[bool, flask.Flask] = True,
+        server: Union[bool, quart.Quart] = True,
         assets_folder: str = "assets",
         pages_folder: str = "pages",
         use_pages: Optional[bool] = None,
@@ -430,15 +438,15 @@ class Dash:
 
         # We have 3 cases: server is either True (we create the server), False
         # (defer server creation) or a Flask app instance (we use their server)
-        if isinstance(server, flask.Flask):
+        if isinstance(server, quart.Quart):
             self.server = server
             if name is None:
                 name = getattr(server, "name", caller_name)
         elif isinstance(server, bool):
             name = name if name else caller_name
-            self.server = flask.Flask(name) if server else None  # type: ignore
+            self.server = quart.Quart(name) if server else None  # type: ignore
         else:
-            raise ValueError("server must be a Flask app or a boolean")
+            raise ValueError("server must be a Quart app or a boolean")
 
         base_prefix, routes_prefix, requests_prefix = pathname_configs(
             url_base_pathname, routes_pathname_prefix, requests_pathname_prefix
@@ -447,7 +455,7 @@ class Dash:
         self.config = AttributeDict(
             name=name,
             assets_folder=os.path.join(
-                flask.helpers.get_root_path(name), assets_folder
+                quart.helpers.get_root_path(name), assets_folder
             ),  # type: ignore
             assets_url_path=assets_url_path,
             assets_ignore=assets_ignore,
@@ -540,7 +548,7 @@ class Dash:
         self._hot_reload = AttributeDict(
             hash=None,
             hard=False,
-            lock=threading.RLock(),
+            lock=asyncio.Lock(),
             watch_thread=None,
             changed_assets=[],
         )
@@ -564,6 +572,12 @@ class Dash:
         if plugins is not None and isinstance(
             plugins, patch_collections_abc("Iterable")
         ):
+            warnings.warn(
+                DeprecationWarning(
+                    "The `plugins` keyword will be removed from Dash init in Dash 3.0 "
+                    "and replaced by a new hook system."
+                )
+            )
             for plugin in plugins:
                 plugin.plug(self)
 
@@ -583,7 +597,7 @@ class Dash:
         self.setup_startup_routes()
 
     def init_app(self, app=None, **kwargs):
-        """Initialize the parts of Dash that require a flask app."""
+        """Initialize the parts of Dash that require a quart app."""
 
         config = self.config
 
@@ -604,7 +618,7 @@ class Dash:
         assets_blueprint_name = f"{bp_prefix}dash_assets"
 
         self.server.register_blueprint(
-            flask.Blueprint(
+            quart.Blueprint(
                 assets_blueprint_name,
                 config.name,
                 static_folder=self.config.assets_folder,
@@ -616,18 +630,18 @@ class Dash:
         if config.compress:
             try:
                 # pylint: disable=import-outside-toplevel
-                from flask_compress import Compress
+                from quart_compress import Compress
 
                 # gzip
                 Compress(self.server)
 
-                _flask_compress_version = parse_version(
-                    _get_distribution_version("flask_compress")
+                _quart_compress_version = parse_version(
+                    _get_distribution_version("quart_compress")
                 )
 
                 if not hasattr(
                     self.server.config, "COMPRESS_ALGORITHM"
-                ) and _flask_compress_version >= parse_version("1.6.0"):
+                ) and _quart_compress_version >= parse_version("1.6.0"):
                     # flask-compress==1.6.0 changed default to ['br', 'gzip']
                     # and non-overridable default compression with Brotli is
                     # causing performance issues
@@ -638,11 +652,11 @@ class Dash:
                 ) from error
 
         @self.server.errorhandler(PreventUpdate)
-        def _handle_error(_):
+        async def _handle_error(_):
             """Handle a halted callback and return an empty 204 response."""
             return "", 204
 
-        self.server.before_request(self._setup_server)
+        self.server.before_serving(self._setup_server)
 
         # add a handler for components suites errors to return 404
         self.server.errorhandler(InvalidResourceError)(self._invalid_resources_handler)
@@ -745,11 +759,11 @@ class Dash:
         _validate.validate_index("index string", checks, value)
         self._index_string = value
 
-    def serve_layout(self):
+    async def serve_layout(self):
         layout = self._layout_value()
 
         # TODO - Set browser cache limit - pass hash into frontend
-        return flask.Response(
+        return quart.Response(
             to_json(layout),
             mimetype="application/json",
         )
@@ -788,16 +802,16 @@ class Dash:
 
         return config
 
-    def serve_reload_hash(self):
+    async def serve_reload_hash(self):
         _reload = self._hot_reload
-        with _reload.lock:
+        async with _reload.lock:
             hard = _reload.hard
             changed = _reload.changed_assets
             _hash = _reload.hash
             _reload.hard = False
             _reload.changed_assets = []
 
-        return flask.jsonify(
+        return quart.jsonify(
             {
                 "reloadHash": _hash,
                 "hard": hard,
@@ -983,7 +997,7 @@ class Dash:
         return meta_tags + self.config.meta_tags
 
     # Serve the JS bundles for each package
-    def serve_component_suites(self, package_name, fingerprinted_path):
+    async def serve_component_suites(self, package_name, fingerprinted_path):
         path_in_pkg, has_fingerprint = check_fingerprint(fingerprinted_path)
 
         _validate.validate_js_path(self.registered_paths, package_name, path_in_pkg)
@@ -1000,7 +1014,7 @@ class Dash:
             package.__path__,
         )
 
-        response = flask.Response(
+        response = quart.Response(
             pkgutil.get_data(package_name, path_in_pkg), mimetype=mimetype
         )
 
@@ -1011,17 +1025,17 @@ class Dash:
         else:
             # Non-fingerprinted resources are given an ETag that
             # will be used / check on future requests
-            response.add_etag()
+            await response.add_etag()
             tag = response.get_etag()[0]
 
-            request_etag = flask.request.headers.get("If-None-Match")
+            request_etag = quart.request.headers.get("If-None-Match")
 
             if f'"{tag}"' == request_etag:
-                response = flask.Response(None, status=304)
+                response = quart.Response("", status=304)
 
         return response
 
-    def index(self, *args, **kwargs):  # pylint: disable=unused-argument
+    async def index(self, *args, **kwargs):  # pylint: disable=unused-argument
         scripts = self._generate_scripts_html()
         css = self._generate_css_dist_html()
         config = self._generate_config_html()
@@ -1131,8 +1145,8 @@ class Dash:
             app_entry=app_entry,
         )
 
-    def dependencies(self):
-        return flask.Response(
+    async def dependencies(self):
+        return quart.Response(
             to_json(self._callback_list),
             content_type="application/json",
         )
@@ -1267,8 +1281,9 @@ class Dash:
         )
 
     # pylint: disable=R0915
-    def dispatch(self):
-        body = flask.request.get_json()
+    async def dispatch(self):
+
+        body = await quart.request.get_json()
 
         g = AttributeDict({})
 
@@ -1293,7 +1308,7 @@ class Dash:
 
         response = (
             g.dash_response  # pylint: disable=assigning-non-slot
-        ) = flask.Response(mimetype="application/json")
+        ) = quart.Response(mimetype="application/json")
 
         args = inputs_to_vals(inputs + state)
 
@@ -1360,12 +1375,6 @@ class Dash:
                 g.using_outputs_grouping = []
             g.updated_props = {}
 
-            g.cookies = dict(**flask.request.cookies)
-            g.headers = dict(**flask.request.headers)
-            g.path = flask.request.full_path
-            g.remote = flask.request.remote_addr
-            g.origin = flask.request.origin
-
         except KeyError as missing_callback_function:
             msg = f"Callback function not found for output '{output}', perhaps you forgot to prepend the '@'?"
             raise KeyError(msg) from missing_callback_function
@@ -1373,7 +1382,7 @@ class Dash:
         ctx = copy_context()
         # noinspection PyArgumentList
         response.set_data(
-            ctx.run(
+            await ctx.run(
                 functools.partial(
                     func,
                     *args,
@@ -1387,7 +1396,7 @@ class Dash:
         )
         return response
 
-    def _setup_server(self):
+    async def _setup_server(self):
         if self._got_first_request["setup_server"]:
             return
         self._got_first_request["setup_server"] = True
@@ -1448,8 +1457,8 @@ class Dash:
                     prevent_initial_call=True,
                     manager=manager,
                 )
-                def cancel_call(*_):
-                    job_ids = flask.request.args.getlist("cancelJob")
+                async def cancel_call(*_):
+                    job_ids = quart.request.args.getlist("cancelJob")
                     executor = _callback.context_value.get().background_callback_manager
                     if job_ids:
                         for job_id in job_ids:
@@ -1502,8 +1511,8 @@ class Dash:
         return err.args[0], 404
 
     @staticmethod
-    def _serve_default_favicon():
-        return flask.Response(
+    async def _serve_default_favicon():
+        return quart.Response(
             pkgutil.get_data("dash", "favicon.ico"), content_type="image/x-icon"
         )
 
@@ -1703,6 +1712,7 @@ class Dash:
 
     def enable_dev_tools(
         self,
+        loop=None,
         debug=None,
         dev_tools_ui=None,
         dev_tools_props_check=None,
@@ -1816,13 +1826,10 @@ class Dash:
                 if x != "__main__"
             ]
 
-            # # additional condition to account for AssertionRewritingHook object
-            # # loader when running pytest
-
             if "_pytest" in sys.modules:
                 from _pytest.assertion.rewrite import (  # pylint: disable=import-outside-toplevel
                     AssertionRewritingHook,
-                )
+                ) 
 
                 for index, package in enumerate(packages):
                     if isinstance(package, AssertionRewritingHook):
@@ -1837,8 +1844,8 @@ class Dash:
                 else os.path.dirname(package.path)
                 if hasattr(package, "path")
                 else os.path.dirname(
-                    package._path[0]  # pylint: disable=protected-access
-                )
+                    package._path[0] # pylint: disable=protected-access
+                 )  
                 if hasattr(package, "_path")
                 else package.filename
                 for package in packages
@@ -1853,15 +1860,15 @@ class Dash:
                         for x in ["dcc", "html", "dash_table"]
                     ]
 
-            _reload.watch_thread = threading.Thread(
-                target=lambda: _watch.watch(
+            def watch_hot_reload():
+                return asyncio.to_thread(
+                    _watch.watch,
                     [self.config.assets_folder] + component_packages_dist,
                     self._on_assets_change,
                     sleep_time=dev_tools.hot_reload_watch_interval,
                 )
-            )
-            _reload.watch_thread.daemon = True
-            _reload.watch_thread.start()
+
+            _reload.watch_task = loop.create_task(watch_hot_reload())
 
         if debug:
             if jupyter_dash.active:
@@ -1873,22 +1880,20 @@ class Dash:
 
                 @self.server.errorhandler(Exception)
                 def _wrap_errors(error):
-                    # find the callback invocation, if the error is from a callback
-                    # and skip the traceback up to that point
-                    # if the error didn't come from inside a callback, we won't
-                    # skip anything.
                     tb = _get_traceback(secret, error)
                     return tb, 500
 
         if debug and dev_tools.ui:
 
-            def _before_request():
-                flask.g.timing_information = {  # pylint: disable=assigning-non-slot
+            @self.server.before_serving
+            async def _before_request():
+                quart.g.timing_information = {
                     "__dash_server": {"dur": time.time(), "desc": None}
                 }
 
-            def _after_request(response):
-                timing_information = flask.g.get("timing_information", None)
+            @self.server.after_request
+            async def _after_request(response):
+                timing_information = quart.g.get("timing_information", None)
                 if timing_information is None:
                     return response
 
@@ -1908,16 +1913,11 @@ class Dash:
 
                 return response
 
-            self.server.before_request(_before_request)
-
-            self.server.after_request(_after_request)
-
         if (
             debug
             and dev_tools.serve_dev_bundles
             and not self.scripts.config.serve_locally
         ):
-            # Dev bundles only works locally.
             self.scripts.config.serve_locally = True
             print(
                 "WARNING: dev bundles requested with serve_locally=False.\n"
@@ -1984,10 +1984,6 @@ class Dash:
         port="8050",
         proxy=None,
         debug=None,
-        jupyter_mode: Optional[JupyterDisplayMode] = None,
-        jupyter_width="100%",
-        jupyter_height=650,
-        jupyter_server_url=None,
         dev_tools_ui=None,
         dev_tools_props_check=None,
         dev_tools_serve_dev_bundles=None,
@@ -1997,9 +1993,9 @@ class Dash:
         dev_tools_hot_reload_max_retry=None,
         dev_tools_silence_routes_logging=None,
         dev_tools_prune_errors=None,
-        **flask_run_options,
+        **quart_run_options,
     ):
-        """Start the flask server in local mode, you should not run this on a
+        """Start the quart server in local mode, you should not run this on a
         production server, use gunicorn/waitress instead.
 
         If a parameter can be set by an environment variable, that is listed
@@ -2088,14 +2084,22 @@ class Dash:
         :param jupyter_server_url: Custom server url to display
             the app in jupyter notebook.
 
-        :param flask_run_options: Given to `Flask.run`
+        :param quart_run_options: Given to `Quart.run`
 
         :return:
         """
+
+        if "jupyter_mode" in quart_run_options:
+            raise NotImplementedError("Jupyter mode is currently not supported.")
+
+        loop = asyncio.get_event_loop()
+        loop.set_exception_handler(exception_handler)
+
         if debug is None:
             debug = get_combined_config("debug", None, False)
 
         debug = self.enable_dev_tools(
+            loop,
             debug,
             dev_tools_ui,
             dev_tools_props_check,
@@ -2108,24 +2112,21 @@ class Dash:
             dev_tools_prune_errors,
         )
 
-        # Evaluate the env variables at runtime
-
         host = os.getenv("HOST", host)
         port = os.getenv("PORT", port)
         proxy = os.getenv("DASH_PROXY", proxy)
 
-        # Verify port value
         try:
             port = int(port)
             assert port in range(1, 65536)
         except Exception as e:
-            e.args = (f"Expecting an integer from 1 to 65535, found port={repr(port)}",)
+            e.args = [f"Expecting an integer from 1 to 65535, found port={repr(port)}"]
             raise
 
         # so we only see the "Running on" message once with hot reloading
         # https://stackoverflow.com/a/57231282/9188800
         if os.getenv("WERKZEUG_RUN_MAIN") != "true":
-            ssl_context = flask_run_options.get("ssl_context")
+            ssl_context = quart_run_options.get("ssl_context")
             protocol = "https" if ssl_context else "http"
             path = self.config.requests_pathname_prefix
 
@@ -2156,11 +2157,10 @@ class Dash:
             else:
                 display_url = (protocol, host, f":{port}", path)
 
-            if not jupyter_dash or not jupyter_dash.in_ipython:
-                self.logger.info("Dash is running on %s://%s%s%s\n", *display_url)
+            self.logger.info("Dash is running on %s://%s%s%s\n", *display_url)
 
         if self.config.extra_hot_reload_paths:
-            extra_files = flask_run_options["extra_files"] = []
+            extra_files = quart_run_options["extra_files"] = []
             for path in self.config.extra_hot_reload_paths:
                 if os.path.isdir(path):
                     for dirpath, _, filenames in os.walk(path):
@@ -2169,18 +2169,9 @@ class Dash:
                 elif os.path.isfile(path):
                     extra_files.append(path)
 
-        if jupyter_dash.active:
-            jupyter_dash.run_app(
-                self,
-                mode=jupyter_mode,
-                width=jupyter_width,
-                height=jupyter_height,
-                host=host,
-                port=port,
-                server_url=jupyter_server_url,
-            )
-        else:
-            self.server.run(host=host, port=port, debug=debug, **flask_run_options)
+        self.server.run(
+            host=host, port=port, debug=debug, loop=loop, **quart_run_options
+        )
 
     def enable_pages(self):
         if not self.use_pages:
@@ -2188,8 +2179,8 @@ class Dash:
         if self.pages_folder:
             _import_layouts_from_pages(self.config.pages_folder)
 
-        @self.server.before_request
-        def router():
+        @self.server.before_serving
+        async def router():
             if self._got_first_request["pages"]:
                 return
             self._got_first_request["pages"] = True
@@ -2206,12 +2197,11 @@ class Dash:
                 inputs=inputs,
                 prevent_initial_call=True,
             )
-            def update(pathname_, search_, **states):
+            async def update(pathname_, search_, **states):
                 """
                 Updates dash.page_container layout on page navigation.
                 Updates the stored page title which will trigger the clientside callback to update the app title
                 """
-
                 query_parameters = _parse_query_string(search_)
                 page, path_variables = _path_to_page(
                     self.strip_relative_path(pathname_)
@@ -2231,12 +2221,23 @@ class Dash:
                     layout = page.get("layout", "")
                     title = page["title"]
 
+                # if inspect.iscoroutine(layout):
+                #     layout = (
+                #         await layout(**path_variables, **query_parameters, **states)
+                #         if path_variables
+                #         else await layout(**query_parameters, **states)
+                #     )
+
+                # if inspect.iscoroutine(title):
+                #     title = await title(**path_variables) if path_variables else await title()
+
                 if callable(layout):
                     layout = (
-                        layout(**path_variables, **query_parameters, **states)
+                        await layout(**path_variables, **query_parameters, **states)
                         if path_variables
-                        else layout(**query_parameters, **states)
+                        else await layout(**query_parameters, **states)
                     )
+
                 if callable(title):
                     title = title(**path_variables) if path_variables else title()
 
@@ -2249,12 +2250,14 @@ class Dash:
             if not self.config.suppress_callback_exceptions:
                 self.validation_layout = html.Div(
                     [
-                        page["layout"]() if callable(page["layout"]) else page["layout"]
+                        await page["layout"]()
+                        if callable(page["layout"])
+                        else page["layout"]
                         for page in _pages.PAGE_REGISTRY.values()
                     ]
                     + [
                         # pylint: disable=not-callable
-                        self.layout()
+                        await self.layout()
                         if callable(self.layout)
                         else self.layout
                     ]
