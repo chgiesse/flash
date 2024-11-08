@@ -2,8 +2,9 @@ import collections
 import hashlib
 from functools import wraps
 from typing import Callable, Optional, Any
+import inspect
 
-import flask
+import quart
 
 from .dependencies import (
     handle_callback_args,
@@ -39,8 +40,14 @@ from .long_callback.managers import BaseLongCallbackManager
 from ._callback_context import context_value
 
 
-def _invoke_callback(func, *args, **kwargs):  # used to mark the frame for the debugger
-    return func(*args, **kwargs)  # %% callback invoked %%
+async def _invoke_callback(func, *func_args, **func_kwargs):
+
+    if inspect.iscoroutinefunction(func):
+        output_value = await func(*func_args, **func_kwargs)  # %% callback invoked %%
+    else:
+        output_value = func(*func_args, **func_kwargs)  # %% callback invoked %%
+
+    return output_value
 
 
 class NoUpdate:
@@ -353,7 +360,7 @@ def register_callback(
             )
 
         @wraps(func)
-        def add_context(*args, **kwargs):
+        async def add_context(*args, **kwargs):
             output_spec = kwargs.pop("outputs_list")
             app_callback_manager = kwargs.pop("long_callback_manager", None)
 
@@ -389,9 +396,9 @@ def register_callback(
                     )
 
                 progress_outputs = long.get("progress")
-                cache_key = flask.request.args.get("cacheKey")
-                job_id = flask.request.args.get("job")
-                old_job = flask.request.args.getlist("oldJob")
+                cache_key = quart.request.args.get("cacheKey")
+                job_id = quart.request.args.get("job")
+                old_job = quart.request.args.getlist("oldJob")
 
                 current_key = callback_manager.build_cache_key(
                     func,
@@ -409,16 +416,23 @@ def register_callback(
 
                     job_fn = callback_manager.func_registry.get(long_key)
 
-                    ctx_value = AttributeDict(**context_value.get())
-                    ctx_value.ignore_register_page = True
-                    ctx_value.pop("background_callback_manager")
-                    ctx_value.pop("dash_response")
-
                     job = callback_manager.call_job_fn(
                         cache_key,
                         job_fn,
                         func_args if func_args else func_kwargs,
-                        ctx_value,
+                        AttributeDict(
+                            args_grouping=callback_ctx.args_grouping,
+                            using_args_grouping=callback_ctx.using_args_grouping,
+                            outputs_grouping=callback_ctx.outputs_grouping,
+                            using_outputs_grouping=callback_ctx.using_outputs_grouping,
+                            inputs_list=callback_ctx.inputs_list,
+                            states_list=callback_ctx.states_list,
+                            outputs_list=callback_ctx.outputs_list,
+                            input_values=callback_ctx.input_values,
+                            state_values=callback_ctx.state_values,
+                            triggered_inputs=callback_ctx.triggered_inputs,
+                            ignore_register_page=True,
+                        ),
                     )
 
                     data = {
@@ -493,7 +507,9 @@ def register_callback(
                     return to_json(response)
             else:
                 try:
-                    output_value = _invoke_callback(func, *func_args, **func_kwargs)
+                    output_value = await _invoke_callback(
+                        func, *func_args, **func_kwargs
+                    )
                 except PreventUpdate as err:
                     raise err
                 except Exception as err:  # pylint: disable=broad-exception-caught
@@ -501,7 +517,7 @@ def register_callback(
                         output_value = error_handler(err)
 
                         # If the error returns nothing, automatically puts NoUpdate for response.
-                        if output_value is None and has_output:
+                        if output_value is None:
                             output_value = NoUpdate()
                     else:
                         raise err

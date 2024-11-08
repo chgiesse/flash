@@ -156,8 +156,8 @@ def _parse_path_variables(pathname, path_template):
 def _create_redirect_function(redirect_to):
     async def redirect():
         return quart.redirect(redirect_to, code=301)
-    return redirect
 
+    return redirect
 
 
 def _set_redirect(redirect_from, path):

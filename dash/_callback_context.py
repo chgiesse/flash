@@ -3,8 +3,9 @@ import warnings
 import json
 import contextvars
 import typing
+import asyncio
 
-import flask
+import quart
 
 from . import exceptions
 from ._utils import AttributeDict, stringify_id
@@ -16,14 +17,30 @@ context_value.set({})
 
 def has_context(func):
     @functools.wraps(func)
-    def assert_context(*args, **kwargs):
+    async def async_assert_context(*args, **kwargs):
         if not context_value.get():
             raise exceptions.MissingCallbackContextException(
-                f"dash.callback_context.{getattr(func, '__name__')} is only available from a callback!"
+                f"IN ASYNC VERSON: dash.callback_context.{getattr(func, '__name__')} is only available from a callback!"
+            )
+        return (
+            await func(*args, **kwargs)
+            if asyncio.iscoroutinefunction(func)
+            else func(*args, **kwargs)
+        )
+
+    @functools.wraps(func)
+    def sync_assert_context(*args, **kwargs):
+        if not context_value.get():
+            raise exceptions.MissingCallbackContextException(
+                f"IN ASYNC VERSON: dash.callback_context.{getattr(func, '__name__')} is only available from a callback!"
             )
         return func(*args, **kwargs)
 
-    return assert_context
+    return (
+        async_assert_context
+        if asyncio.iscoroutinefunction(func)
+        else sync_assert_context
+    )
 
 
 def _get_context_value():
@@ -220,14 +237,14 @@ class CallbackContext:
         :param description: A description of the resource.
         :type description: string or None
         """
-        timing_information = getattr(flask.g, "timing_information", {})
+        timing_information = getattr(quart.g, "timing_information", {})
 
         if name in timing_information:
             raise KeyError(f'Duplicate resource name "{name}" found.')
 
         timing_information[name] = {"dur": round(duration * 1000), "desc": description}
 
-        setattr(flask.g, "timing_information", timing_information)
+        setattr(quart.g, "timing_information", timing_information)
 
     @property
     @has_context
@@ -250,7 +267,7 @@ class CallbackContext:
     @property
     @has_context
     def timing_information(self):
-        return getattr(flask.g, "timing_information", {})
+        return getattr(quart.g, "timing_information", {})
 
     @has_context
     def set_props(self, component_id: typing.Union[str, dict], props: dict):
@@ -308,8 +325,8 @@ class CallbackContext:
 callback_context = CallbackContext()
 
 
-def set_props(component_id: typing.Union[str, dict], props: dict):
+async def set_props(component_id: typing.Union[str, dict], props: dict):
     """
-    Set the props for a component not included in the callback outputs.
+    Async version of set_props for setting props for a component not included in the callback outputs.
     """
-    callback_context.set_props(component_id, props)
+    await callback_context.set_props(component_id, props)

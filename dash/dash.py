@@ -210,18 +210,18 @@ class Dash:
         env: ``DASH_****``
     Values provided here take precedence over environment variables.
 
-    :param name: The name Flask should use for your app. Even if you provide
+    :param name: The name Quart should use for your app. Even if you provide
         your own ``server``, ``name`` will be used to help find assets.
         Typically ``__name__`` (the magic global var, not a string) is the
         best value to use. Default ``'__main__'``, env: ``DASH_APP_NAME``
     :type name: string
 
-    :param server: Sets the Flask server for your app. There are three options:
+    :param server: Sets the Quart server for your app. There are three options:
         ``True`` (default): Dash will create a new server
         ``False``: The server will be added later via ``app.init_app(server)``
-            where ``server`` is a ``flask.Flask`` instance.
-        ``flask.Flask``: use this pre-existing Flask server.
-    :type server: boolean or flask.Flask
+            where ``server`` is a ``Quart.Quart`` instance.
+        ``Quart.Quart``: use this pre-existing Quart server.
+    :type server: boolean or Quart.Quart
 
     :param assets_folder: a path, relative to the current working directory,
         for extra files to be used in the browser. Default ``'assets'``.
@@ -291,7 +291,7 @@ class Dash:
         If ``False`` we will use CDN links where available.
     :type serve_locally: boolean
 
-    :param compress: Use gzip to compress files and data served by Flask.
+    :param compress: Use gzip to compress files and data served by Quart.
         To use this option, you need to install dash[compress]
         Default ``False``
     :type compress: boolean
@@ -345,7 +345,7 @@ class Dash:
 
     :param plugins: Extend Dash functionality by passing a list of objects
         with a ``plug`` method, taking a single argument: this app, which will
-        be called after the Flask server is attached.
+        be called after the Quart server is attached.
     :type plugins: list of objects
 
     :param title: Default ``Dash``. Configures the document.title
@@ -437,7 +437,7 @@ class Dash:
         caller_name = None if name else get_caller_name()
 
         # We have 3 cases: server is either True (we create the server), False
-        # (defer server creation) or a Flask app instance (we use their server)
+        # (defer server creation) or a Quart app instance (we use their server)
         if isinstance(server, quart.Quart):
             self.server = server
             if name is None:
@@ -642,7 +642,7 @@ class Dash:
                 if not hasattr(
                     self.server.config, "COMPRESS_ALGORITHM"
                 ) and _quart_compress_version >= parse_version("1.6.0"):
-                    # flask-compress==1.6.0 changed default to ['br', 'gzip']
+                    # Quart-compress==1.6.0 changed default to ['br', 'gzip']
                     # and non-overridable default compression with Brotli is
                     # causing performance issues
                     self.server.config["COMPRESS_ALGORITHM"] = ["gzip"]
@@ -676,7 +676,7 @@ class Dash:
         )
 
         # record the url in Dash.routes so that it can be accessed later
-        # e.g. for adding authentication with flask_login
+        # e.g. for adding authentication with Quart_login
         self.routes.append(full_name)
 
     def _setup_routes(self):
@@ -737,7 +737,7 @@ class Dash:
         self._layout_is_function = callable(value)
         self._layout = value
 
-        # for using flask.has_request_context() to deliver a full layout for
+        # for using Quart.has_request_context() to deliver a full layout for
         # validation inside a layout function - track if a user might be doing this.
         if (
             self._layout_is_function
@@ -1523,9 +1523,9 @@ class Dash:
 
         Calculate these hashes after all inline callbacks are defined,
         and add them to your CSP headers before starting the server, for example
-        with the flask-talisman package from PyPI:
+        with the Quart-talisman package from PyPI:
 
-        flask_talisman.Talisman(app.server, content_security_policy={
+        Quart_talisman.Talisman(app.server, content_security_policy={
             "default-src": "'self'",
             "script-src": ["'self'"] + app.csp_hashes()
         })
@@ -1788,7 +1788,7 @@ class Dash:
         :type dev_tools_silence_routes_logging: bool
 
         :param dev_tools_prune_errors: Reduce tracebacks to just user code,
-            stripping out Flask and Dash pieces. Only available with debugging.
+            stripping out Quart and Dash pieces. Only available with debugging.
             `True` by default, set to `False` to see the complete traceback.
             env: ``DASH_PRUNE_ERRORS``
         :type dev_tools_prune_errors: bool
@@ -2017,7 +2017,7 @@ class Dash:
             env: ``DASH_PROXY``
         :type proxy: string
 
-        :param debug: Set Flask debug mode and enable dev tools.
+        :param debug: Set Quart debug mode and enable dev tools.
             env: ``DASH_DEBUG``
         :type debug: bool
 
@@ -2065,7 +2065,7 @@ class Dash:
         :type dev_tools_silence_routes_logging: bool
 
         :param dev_tools_prune_errors: Reduce tracebacks to just user code,
-            stripping out Flask and Dash pieces. Only available with debugging.
+            stripping out Quart and Dash pieces. Only available with debugging.
             `True` by default, set to `False` to see the complete traceback.
             env: ``DASH_PRUNE_ERRORS``
         :type dev_tools_prune_errors: bool
