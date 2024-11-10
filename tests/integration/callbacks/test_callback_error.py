@@ -2,8 +2,8 @@ from dash import Dash, html, Input, Output, set_props
 
 
 def test_cber001_error_handler(dash_duo):
-    def global_callback_error_handler(err):
-        set_props("output-global", {"children": f"global: {err}"})
+    async def global_callback_error_handler(err):
+        await set_props("output-global", {"children": f"global: {err}"})
 
     app = Dash(on_error=global_callback_error_handler)
 
@@ -18,8 +18,8 @@ def test_cber001_error_handler(dash_duo):
         html.Div("default-value", id="grouped-output"),
     ]
 
-    def on_callback_error(err):
-        set_props("error-message", {"children": f"message: {err}"})
+    async def on_callback_error(err):
+        await set_props("error-message", {"children": f"message: {err}"})
         return f"callback: {err}"
 
     @app.callback(
@@ -28,7 +28,7 @@ def test_cber001_error_handler(dash_duo):
         on_error=on_callback_error,
         prevent_initial_call=True,
     )
-    def on_start(_):
+    async def on_start(_):
         raise Exception("local error")
 
     @app.callback(
@@ -36,7 +36,7 @@ def test_cber001_error_handler(dash_duo):
         Input("start-global", "n_clicks"),
         prevent_initial_call=True,
     )
-    def on_start_global(_):
+    async def on_start_global(_):
         raise Exception("global error")
 
     @app.callback(
@@ -44,7 +44,7 @@ def test_cber001_error_handler(dash_duo):
         inputs=dict(start=Input("start-grouped", "n_clicks")),
         prevent_initial_call=True,
     )
-    def on_start_grouped(start=0):
+    async def on_start_grouped(start=0):
         raise Exception("grouped error")
 
     dash_duo.start_server(app)
