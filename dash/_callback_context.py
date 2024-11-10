@@ -270,8 +270,10 @@ class CallbackContext:
         return getattr(quart.g, "timing_information", {})
 
     @has_context
-    def set_props(self, component_id: typing.Union[str, dict], props: dict):
+    async def set_props(self, component_id: typing.Union[str, dict], props: dict):
         ctx_value = _get_context_value()
+        if not hasattr(ctx_value, "updated_props"):
+            ctx_value.updated_props = {}
         _id = stringify_id(component_id)
         existing = ctx_value.updated_props.get(_id)
         if existing is not None:

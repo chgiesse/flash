@@ -1860,11 +1860,19 @@ class Dash:
                         for x in ["dcc", "html", "dash_table"]
                     ]
 
-            def watch_hot_reload():
-                return asyncio.to_thread(
-                    _watch.watch,
-                    [self.config.assets_folder] + component_packages_dist,
-                    self._on_assets_change,
+            # def watch_hot_reload():
+            #     print("Is This in hot reload?", flush=True)
+            #     return asyncio.to_thread(
+            #         _watch.async_wath,
+            #         [self.config.assets_folder] + component_packages_dist,
+            #         self._on_assets_change,
+            #         sleep_time=dev_tools.hot_reload_watch_interval,
+            #     )
+
+            async def watch_hot_reload():
+                return await _watch.watch(
+                    folders=[self.config.assets_folder] + component_packages_dist,
+                    on_change=self._on_assets_change,
                     sleep_time=dev_tools.hot_reload_watch_interval,
                 )
 
@@ -1885,7 +1893,7 @@ class Dash:
 
         if debug and dev_tools.ui:
 
-            @self.server.before_serving
+            @self.server.before_request
             async def _before_request():
                 quart.g.timing_information = {
                     "__dash_server": {"dur": time.time(), "desc": None}
@@ -1927,9 +1935,9 @@ class Dash:
         return debug
 
     # noinspection PyProtectedMember
-    def _on_assets_change(self, filename, modified, deleted):
+    async def _on_assets_change(self, filename, modified, deleted):
         _reload = self._hot_reload
-        with _reload.lock:
+        async with _reload.lock:
             _reload.hard = True
             _reload.hash = generate_hash()
 
