@@ -15,7 +15,7 @@ def test_cbcx001_modified_response(dash_duo):
     app.layout = html.Div([dcc.Input(id="input", value="ab"), html.Div(id="output")])
 
     @app.callback(Output("output", "children"), [Input("input", "value")])
-    def update_output(value):
+    async def update_output(value):
         callback_context.response.set_cookie("dash_cookie", value + " - cookie")
         return value + " - output"
 
@@ -43,7 +43,7 @@ def test_cbcx002_triggered(dash_duo):
     )
 
     @app.callback(Output("output", "children"), [Input(x, "n_clicks") for x in btns])
-    def on_click(*args):
+    async def on_click(*args):
         if not callback_context.triggered:
             raise PreventUpdate
         trigger = callback_context.triggered[0]
@@ -72,7 +72,7 @@ def test_cbcx004_triggered_backward_compat(dash_duo):
     app.layout = html.Div([html.Button("click!", id="btn"), html.Div(id="out")])
 
     @app.callback(Output("out", "children"), [Input("btn", "n_clicks")])
-    def report_triggered(n):
+    async def report_triggered(n):
         triggered = callback_context.triggered
         bool_val = "truthy" if triggered else "falsy"
         split_propid = json.dumps(triggered[0]["prop_id"].split("."))
@@ -136,7 +136,7 @@ def test_cbcx005_grouped_clicks(dash_duo):
         ],
         prevent_initial_call=True,
     )
-    def update(div1, div2, btn0, btn1, btn2):
+    async def update(div1, div2, btn0, btn1, btn2):
         context.calls = context.calls + 1
         context.callback_contexts.append(callback_context.triggered)
         context.clicks["div1"] = div1
@@ -259,7 +259,7 @@ def test_cbcx006_initial_callback_predecessor(dash_duo):
         Output("sum-number", "value"),
         [Input("input-number-1", "value"), Input("input-number-2", "value")],
     )
-    def update_sum_number(n1, n2):
+    async def update_sum_number(n1, n2):
         context.calls = context.calls + 1
         context.callback_contexts.append(callback_context.triggered)
 
@@ -273,7 +273,7 @@ def test_cbcx006_initial_callback_predecessor(dash_duo):
             Input("sum-number", "value"),
         ],
     )
-    def update_results(n1, n2, nsum):
+    async def update_results(n1, n2, nsum):
         context.calls = context.calls + 1
         context.callback_contexts.append(callback_context.triggered)
 
@@ -342,7 +342,7 @@ def test_cbcx007_triggered_id(dash_duo):
     )
 
     @app.callback(Output("output", "children"), [Input(x, "n_clicks") for x in btns])
-    def on_click(*args):
+    async def on_click(*args):
         if not ctx.triggered:
             raise PreventUpdate
         for btn in btns:
@@ -371,7 +371,7 @@ def test_cbcx008_triggered_id_pmc(dash_duo):
     @app.callback(
         Output("output", "children"), Input({"type": "btn", "index": ALL}, "n_clicks")
     )
-    def func(n_clicks):
+    async def func(n_clicks):
         if ctx.triggered:
             triggered_id, dict_id = next(iter(ctx.triggered_prop_ids.items()))
 
