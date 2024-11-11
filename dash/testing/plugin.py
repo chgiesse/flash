@@ -175,9 +175,9 @@ def dash_br(request, tmpdir) -> Browser:
 
 
 @pytest.fixture
-def dash_duo(request, dash_thread_server, tmpdir) -> DashComposite:
+def dash_duo(request, dash_multi_process_server, tmpdir) -> DashComposite:
     with DashComposite(
-        dash_thread_server,
+        dash_multi_process_server,
         browser=request.config.getoption("webdriver"),
         remote=request.config.getoption("remote"),
         remote_url=request.config.getoption("remote_url"),
