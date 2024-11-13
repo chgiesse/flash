@@ -44,6 +44,11 @@ export default class Tooltip extends PureComponent<
         };
     }
 
+    componentWillUnmount() {
+        clearTimeout(this.state.displayTooltipId);
+        clearTimeout(this.state.hideTooltipId);
+    }
+
     UNSAFE_componentWillReceiveProps(nextProps: ITooltipProps) {
         const {delay, duration} = nextProps.tooltip;
 
