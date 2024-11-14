@@ -1,3 +1,12 @@
+### Callback Test runs 2024-11-14
+Results (51.92s):
+24 passed
+  1 failed
+    - [x] tests/integration/clientside/test_clientside_outputs_list.py:69 test_clol003_clientside_outputs_list_by_multiple_output2
+      - passes individually
+  1 skipped
+
+
 ### Callback Test runs 2024-11-12
 
 Results (219.94s):
