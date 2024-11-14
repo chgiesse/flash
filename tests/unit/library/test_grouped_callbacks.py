@@ -31,7 +31,7 @@ def make_dependency_grouping(schema, dep_classes):
     return make_grouping_by_index(schema, flat_dependencies)
 
 
-def check_output_for_grouping(grouping):
+async def check_output_for_grouping(grouping):
     """
     Check the behavior of a callback that returns the specified grouping
     """
@@ -61,7 +61,7 @@ def check_output_for_grouping(grouping):
     if not multi:
         outputs_list = outputs_list[0]
 
-    result = json.loads(wrapped_fn("Hello", outputs_list=outputs_list))
+    result = json.loads(await wrapped_fn("Hello", outputs_list=outputs_list))
 
     response = result["response"]
     for id, prop, val in expected_outputs:
