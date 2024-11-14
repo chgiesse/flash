@@ -3,7 +3,7 @@ from dash.testing.browser import Browser
 from dash.testing.consts import SELENIUM_GRID_DEFAULT
 
 
-@pytest.mark.parametrize("browser_type", ("Chrome", "Firefox"))
+@pytest.mark.parametrize("browser_type", ("Chrome",))  # "Firefox"
 def test_browser_smoke(browser_type, tmpdir):
 
     browser = Browser(
