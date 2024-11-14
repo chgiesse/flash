@@ -15,7 +15,7 @@ import warnings
 from html import escape
 from functools import wraps
 from typing import Union
-import quart
+from quart.utils import run_sync
 from dash.types import RendererHooks
 
 
@@ -313,7 +313,7 @@ async def _invoke_callback(func, *func_args, **func_kwargs):
         output_value = await func(*func_args, **func_kwargs)  # %% callback invoked %%
 
     else:
-        output_value = await quart.run_sync(func)(
+        output_value = await run_sync(func)(
             *func_args, **func_kwargs
         )  # %% callback invoked %%
 
