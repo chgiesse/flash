@@ -56,12 +56,14 @@ def test_pare001_relative_path(dash_duo, clear_pages_state):
 
 
 def test_pare002_relative_path_with_url_base_pathname(
-    dash_br, dash_thread_server, clear_pages_state
+    dash_br, dash_multi_process_server, clear_pages_state
 ):
-    dash_thread_server(
+    dash_multi_process_server(
         get_app(Dash(__name__, use_pages=True, url_base_pathname="/app1/"))
     )
-    dash_br.server_url = "http://localhost:{}/app1/".format(dash_thread_server.port)
+    dash_br.server_url = "http://localhost:{}/app1/".format(
+        dash_multi_process_server.port
+    )
 
     for page in dash.page_registry.values():
         dash_br.find_element("#" + page["id"]).click()

@@ -1,4 +1,20 @@
 ### Assets Test runs 2024-11-14
+Results (80.63s):
+4 passed
+7 failed
+  - [ ] tests/integration/multi_page/test_pages_layout.py:52 test_pala001_layout
+  - [x] tests/integration/multi_page/test_pages_layout.py:220 test_pala005_routing_inputs
+    - passes individually
+  - [x] tests/integration/multi_page/test_pages_layout.py:240 test_pala006_pages_external_library
+    - passes individually
+  - [x] tests/integration/multi_page/test_pages_layout.py:284 test_pala007_app_title_discription
+    - added path to page-1
+  - [ ] tests/integration/multi_page/test_pages_relative_path.py:48 test_pare001_relative_path
+  - [x] tests/integration/multi_page/test_pages_relative_path.py:58 
+    - passes individually
+  - [ ] tests/integration/multi_page/test_pages_relative_path.py:74 test_pare003_absolute_path
+
+### Renderer test runs 2024-11-14
 Results (258.22s):
 70 passed
 4 failed
