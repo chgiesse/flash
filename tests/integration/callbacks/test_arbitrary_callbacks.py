@@ -27,8 +27,8 @@ def test_arb001_global_set_props(dash_duo):
         Input("clicker", "n_clicks"),
         prevent_initial_call=True,
     )
-    def on_click(n_clicks):
-        set_props("secondary-output", {"children": "secondary"})
+    async def on_click(n_clicks):
+        await set_props("secondary-output", {"children": "secondary"})
         return f"Clicked {n_clicks} times"
 
     dash_duo.start_server(app)
@@ -56,21 +56,21 @@ def test_arb002_no_output_callbacks(dash_duo):
         Input("no-output", "n_clicks"),
         prevent_initial_call=True,
     )
-    def no_output1(_):
-        set_props("secondary-output", {"children": "no-output"})
+    async def no_output1(_):
+        await set_props("secondary-output", {"children": "no-output"})
 
     @app.callback(
         Input("no-output2", "n_clicks"),
         prevent_initial_call=True,
     )
-    def no_output2(_):
-        set_props("secondary-output", {"children": "no-output2"})
+    async def no_output2(_):
+        await set_props("secondary-output", {"children": "no-output2"})
 
     @app.callback(
         Input("no-output3", "n_clicks"),
         prevent_initial_call=True,
     )
-    def no_output3(_):
+    async def no_output3(_):
         with counter.get_lock():
             counter.value += 1
 
@@ -108,15 +108,15 @@ def test_arb003_arbitrary_pages(dash_duo, clear_pages_state):
         Input("no-output", "n_clicks"),
         prevent_initial_call=True,
     )
-    def no_output(_):
-        set_props("secondary-output", {"children": "no-output"})
+    async def no_output(_):
+        await set_props("secondary-output", {"children": "no-output"})
 
     @app.callback(
         Input("no-output2", "n_clicks"),
         prevent_initial_call=True,
     )
-    def no_output(_):
-        set_props("secondary-output", {"children": "no-output2"})
+    async def no_output(_):
+        await set_props("secondary-output", {"children": "no-output2"})
 
     dash_duo.start_server(app)
 
@@ -140,8 +140,8 @@ def test_arb004_wildcard_set_props(dash_duo):
         Input("click", "n_clicks"),
         prevent_initial_call=True,
     )
-    def on_click(n_clicks):
-        set_props(
+    async def on_click(n_clicks):
+        await set_props(
             {"id": "output", "index": 0}, {"children": f"Clicked {n_clicks} times"}
         )
 
@@ -157,7 +157,7 @@ def test_arb005_no_output_error(dash_duo):
     app.layout = html.Div([html.Button("start", id="start")])
 
     @app.callback(Input("start", "n_clicks"), prevent_initial_call=True)
-    def on_click(clicked):
+    async def on_click(clicked):
         return f"clicked {clicked}"
 
     dash_duo.start_server(
@@ -186,9 +186,9 @@ def test_arb006_multi_set_props(dash_duo):
     @app.callback(
         Input("start", "n_clicks"),
     )
-    def on_click(_):
-        set_props("output", {"children": "changed"})
-        set_props("output", {"style": {"background": "rgb(255,0,0)"}})
+    async def on_click(_):
+        await set_props("output", {"children": "changed"})
+        await set_props("output", {"style": {"background": "rgb(255,0,0)"}})
 
     dash_duo.start_server(app)
     dash_duo.wait_for_element("#start").click()

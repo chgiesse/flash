@@ -1,7 +1,18 @@
 ## Patch Log 
 
-#### 2024-11-08 - Initial Patch
+## _2024-11-08 - async path walk_  
 
+### Dash
+- enable_dev_tools 
+
+### _watch
+- watch 
+
+### plugins
+- dash_duo - replaced ThreadedRunner class with MultiProcessRunner for tests - multithreading had problems with the event loop
+
+## _2024-11-08 - Initial Patch_
+-
 ### Dash
 - __ init __
 - init_app

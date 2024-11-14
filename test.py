@@ -2,6 +2,7 @@ import asyncio
 import random
 import dash_mantine_components as dmc
 import dash
+import time
 from dash import (
     Dash,
     Input, 
@@ -65,7 +66,7 @@ app.layout = create_appshell(
                 dmc.Button('test patch', id='test-btn-1'),
                 dmc.Button('test async clientside', id='test-btn-2'),
                 dmc.Button('test set props', id='test-btn-3'),  
-                dmc.Button('test timeout', id='test-btn-4'),  
+                dmc.Button('test sync callback', id='test-btn-4'),  
             ]),
             dmc.Group([
                 dmc.Button('test pattern matching', id=create_test_btn_id(1)),
@@ -138,10 +139,8 @@ async def test3(n_clicks):
     prevent_initial_call=True
 )
 
-async def test3(n_clicks):
-    timeout = 5
-    await asyncio.sleep(timeout)
-
+def test3(n_clicks):
+    time.sleep(2)
     return n_clicks
 
 

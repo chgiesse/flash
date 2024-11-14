@@ -3,8 +3,10 @@ import hashlib
 from functools import wraps
 from typing import Callable, Optional, Any
 import inspect
+import warnings
 
 import quart
+from quart.utils import run_sync
 
 from .dependencies import (
     handle_callback_args,
@@ -44,8 +46,17 @@ async def _invoke_callback(func, *func_args, **func_kwargs):
 
     if inspect.iscoroutinefunction(func):
         output_value = await func(*func_args, **func_kwargs)  # %% callback invoked %%
+
     else:
-        output_value = func(*func_args, **func_kwargs)  # %% callback invoked %%
+        output_value = await run_sync(func)(
+            *func_args, **func_kwargs
+        )  # %% callback invoked %%
+
+        warnings.warn(
+            f"Function '{func.__name__}' should be a coroutine function (defined with 'async def'). "
+            "While it will still work, this may impact performance and is deprecated.",
+            stacklevel=2,
+        )
 
     return output_value
 
@@ -514,7 +525,7 @@ def register_callback(
                     raise err
                 except Exception as err:  # pylint: disable=broad-exception-caught
                     if error_handler:
-                        output_value = error_handler(err)
+                        output_value = await _invoke_callback(error_handler, err)
 
                         # If the error returns nothing, automatically puts NoUpdate for response.
                         if output_value is None:

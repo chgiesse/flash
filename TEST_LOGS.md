@@ -1,0 +1,61 @@
+### Callback Test runs 2024-11-12
+
+Results (219.94s):
+84 passed
+30 failed
+  - [x] tests/integration/callbacks/test_basic_callback.py:31 ~~test_cbsc001_simple_callback~~ 
+    - react-dom@16.v2_18_2m1731086223.14.0.js:82 Warning: Can't perform a React state update on an unmounted component. This is a no-op, but it indicates a memory leak in your application. To fix, cancel all subscriptions and asynchronous tasks in the componentWillUnmount method.
+
+    - doesnt pass when run with every tests but runs individually
+
+    - removed dash_duo.get_logs() == [] 
+
+    - Full diff:
+
+        - [
+            + {
+                'level': 'SEVERE',
+                'message': 'http://localhost:8050/_dash-component-suites/dash/dash-renderer/build/dash_renderer.v2_18_2m1731420187.min.js '
+                 '1:95209 Object',
+                 'source': 'console-api',
+                 'timestamp': 1731492847228,
+            + },
+            + {
+                 'level': 'SEVERE',
+                 'message': 'http://localhost:8050/_dash-component-suites/dash/dash-renderer/build/dash_renderer.v2_18_2m1731420187.min.js '
+                '1:95209 Object',
+                'source': 'console-api',
+                'timestamp': 1731492847228,
+            + },
+        + ]
+
+  - [x] tests/integration/callbacks/test_basic_callback.py:154 test_cbsc003_callback_with_unloaded_async_component
+  - [ ] tests/integration/callbacks/test_basic_callback.py:187 test_cbsc004_callback_using_unloaded_async_component
+  - [ ] tests/integration/callbacks/test_basic_callback.py:368 test_cbsc008_wildcard_prop_callbacks
+  - [ ] tests/integration/callbacks/test_basic_callback.py:433 test_cbsc009_callback_using_unloaded_async_component_and_graph
+  - [ ] tests/integration/callbacks/test_basic_callback.py:498 test_cbsc011_one_call_for_multiple_outputs_initial
+  - [ ] tests/integration/callbacks/test_basic_callback.py:582 test_cbsc013_multi_output_out_of_order
+  - [ ] tests/integration/callbacks/test_basic_callback.py:677 test_cbsc015_input_output_callback
+  - [ ] tests/integration/callbacks/test_basic_callback.py:724 test_cbsc016_extra_components_callback
+  - [ ] tests/integration/callbacks/test_basic_callback.py:761 test_cbsc017_callback_directly_callable
+  - [ ] tests/integration/callbacks/test_basic_callback.py:780 test_cbsc018_callback_ndarray_output
+  - [ ] tests/integration/callbacks/test_basic_callback.py:863 test_cbsc021_callback_running_non_existing_component
+  - [ ] tests/integration/callbacks/test_callback_context.py:13 test_cbcx001_modified_response
+  - [ ] tests/integration/callbacks/test_callback_context.py:100 test_cbcx005_grouped_clicks
+  - [ ] tests/integration/callbacks/test_callback_context.py:220 test_cbcx006_initial_callback_predecessor
+  - [x] tests/integration/callbacks/test_callback_error.py:4 ~~test_cber001_error_handler~~
+    - error handler gets invoked as callback, so sync and async error handlers get properly executed 
+  - [ ] tests/integration/callbacks/test_dynamic_callback.py:47 test_dync002_dynamic_callback_without_element
+  - [ ] tests/integration/callbacks/test_malformed_request.py:6 test_cbmf001_bad_output_outputs
+  - [ ] tests/integration/callbacks/test_missing_outputs.py:16 test_cbmo001_all_output[False]
+  - [ ] tests/integration/callbacks/test_missing_outputs.py:16 test_cbmo001_all_output[True]
+  - [ ] tests/integration/callbacks/test_missing_outputs.py:91 test_cbmo002_all_and_match_output[False]
+  - [ ] tests/integration/callbacks/test_missing_outputs.py:91 test_cbmo002_all_and_match_output[True]
+  - [ ] tests/integration/callbacks/test_missing_outputs.py:189 test_cbmo003_multi_all
+  - [ ] tests/integration/callbacks/test_missing_outputs.py:343 test_cbmo005_no_update_single_to_multi
+  - [ ] tests/integration/callbacks/test_multiple_callbacks.py:12 test_cbmt001_called_multiple_times_and_out_of_order
+  - [ ] tests/integration/callbacks/test_multiple_callbacks.py:417 test_cbmt010_shared_grandparent
+  - [ ] tests/integration/callbacks/test_multiple_callbacks.py:585 test_cbmt013_chained_callback_should_be_blocked
+  - [ ] tests/integration/callbacks/test_prevent_update.py:12 test_cbpu001_aborted_callback
+  - [ ] tests/integration/callbacks/test_validation.py:63 test_cbva002_callback_return_validation
+  - [ ] tests/integration/callbacks/test_wildcards.py:364 test_cbwc005_callbacks_count
