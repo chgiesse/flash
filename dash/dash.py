@@ -15,6 +15,7 @@ import mimetypes
 import hashlib
 import base64
 import traceback
+import inspect
 from urllib.parse import urlparse
 from typing import Any, Callable, Dict, Optional, Union, List
 
@@ -2229,22 +2230,19 @@ class Dash:
                     layout = page.get("layout", "")
                     title = page["title"]
 
-                # if inspect.iscoroutine(layout):
-                #     layout = (
-                #         await layout(**path_variables, **query_parameters, **states)
-                #         if path_variables
-                #         else await layout(**query_parameters, **states)
-                #     )
-
-                # if inspect.iscoroutine(title):
-                #     title = await title(**path_variables) if path_variables else await title()
-
                 if callable(layout):
-                    layout = (
-                        await layout(**path_variables, **query_parameters, **states)
-                        if path_variables
-                        else await layout(**query_parameters, **states)
-                    )
+                    if inspect.iscoroutinefunction(layout):
+                        layout = (
+                            await layout(**path_variables, **query_parameters, **states)
+                            if path_variables
+                            else await layout(**query_parameters, **states)
+                        )
+                    else:
+                        layout = (
+                            layout(**path_variables, **query_parameters, **states)
+                            if path_variables
+                            else layout(**query_parameters, **states)
+                        )
 
                 if callable(title):
                     title = title(**path_variables) if path_variables else title()
@@ -2256,20 +2254,38 @@ class Dash:
 
             # Set validation_layout
             if not self.config.suppress_callback_exceptions:
+                # self.validation_layout = html.Div(
+                #     [
+                #         await page["layout"]()
+                #         if callable(page["layout"])
+                #         else page["layout"]
+                #         for page in _pages.PAGE_REGISTRY.values()
+                #     ]
+                #     + [
+                #         # pylint: disable=not-callable
+                #         await self.layout()
+                #         if callable(self.layout)
+                #         else self.layout
+                #     ]
+                # )
                 self.validation_layout = html.Div(
                     [
                         await page["layout"]()
+                        if inspect.iscoroutinefunction(page["layout"])
+                        else page["layout"]()
                         if callable(page["layout"])
                         else page["layout"]
                         for page in _pages.PAGE_REGISTRY.values()
                     ]
                     + [
-                        # pylint: disable=not-callable
                         await self.layout()
+                        if inspect.iscoroutinefunction(self.layout)
+                        else self.layout()
                         if callable(self.layout)
                         else self.layout
                     ]
                 )
+
                 if _ID_CONTENT not in self.validation_layout:
                     raise Exception("`dash.page_container` not found in the layout")
 
