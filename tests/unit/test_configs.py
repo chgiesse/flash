@@ -2,7 +2,8 @@ import os
 import logging
 
 import pytest
-from flask import Flask
+from quart import Quart
+import asyncio
 
 from dash import Dash, exceptions as _exc
 
@@ -230,8 +231,8 @@ def test_load_dash_env_vars_refects_to_os_environ(empty_environ):
         (None, True, "__main__"),
         ("test", True, "test"),
         ("test", False, "test"),
-        (None, Flask("test"), "test"),
-        ("test", Flask("other"), "test"),
+        (None, Quart("test"), "test"),
+        ("test", Quart("other"), "test"),
     ],
 )
 def test_app_name_server(empty_environ, name, server, expected):
@@ -406,19 +407,20 @@ def test_proxy_failure(mocker, empty_environ):
     assert "you must use port: 8155" in excinfo.exconly()
 
 
-def test_title():
+@pytest.mark.asyncio
+async def test_title():
     app = Dash()
-    assert "<title>Dash</title>" in app.index()
+    assert "<title>Dash</title>" in await app.index()
     app = Dash()
     app.title = "Hello World"
-    assert "<title>Hello World</title>" in app.index()
+    assert "<title>Hello World</title>" in await app.index()
     app = Dash(title="Custom Title")
-    assert "<title>Custom Title</title>" in app.index()
+    assert "<title>Custom Title</title>" in await app.index()
 
 
 def test_app_delayed_config():
     app = Dash(server=False)
-    app.init_app(app=Flask("test"), requests_pathname_prefix="/dash/")
+    app.init_app(app=Quart("test"), requests_pathname_prefix="/dash/")
 
     assert app.config.requests_pathname_prefix == "/dash/"
 
@@ -429,7 +431,7 @@ def test_app_delayed_config():
 def test_app_invalid_delayed_config():
     app = Dash(server=False)
     with pytest.raises(AttributeError):
-        app.init_app(app=Flask("test"), name="too late 2 update")
+        app.init_app(app=Quart("test"), name="too late 2 update")
 
 
 @pytest.mark.parametrize(
@@ -473,7 +475,8 @@ def test_debug_mode_enable_dev_tools(empty_environ, debug_env, debug, expected):
     if debug_env:
         os.environ["DASH_DEBUG"] = debug_env
     app = Dash()
-    app.enable_dev_tools(debug=debug)
+    loop = asyncio.get_event_loop()
+    app.enable_dev_tools(loop=loop, debug=debug)
     assert app._dev_tools.ui == expected
 
 
