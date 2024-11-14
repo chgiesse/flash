@@ -1,4 +1,20 @@
-### Callback Test runs 2024-11-14
+### Assets Test runs 2024-11-14
+Results (258.22s):
+70 passed
+4 failed
+  - [x] tests/integration/renderer/test_race_conditions.py ~~test_rdrc001_race_conditions~~
+    - replaced flask with quart and sleep with asyncio sleep
+  - [x] tests/integration/renderer/test_multi_output.py:116 ~~test_rdmo004_multi_output_circular_dependencies~~
+    - passes individually 
+    - tested manually
+  - [] tests/integration/renderer/test_request_hooks.py:203 test_rdrh003_refresh_jwt[401]
+  - [] tests/integration/renderer/test_request_hooks.py:203 test_rdrh003_refresh_jwt[400]
+
+### Assets Test runs 2024-11-14
+Results (3.91s):
+  2 passed
+
+### Client Side Callback Test runs 2024-11-14
 Results (51.92s):
 24 passed
   1 failed

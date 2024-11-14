@@ -1,7 +1,7 @@
 import itertools
-import time
-import flask
+import quart
 import pytest
+import asyncio
 
 from dash import Dash, html, dcc, Input, Output
 
@@ -36,10 +36,10 @@ def test_rdrc001_race_conditions(dash_duo, permuted_str):
     def update(value):
         return value
 
-    def delay():
+    async def delay():
         for i, route in enumerate(endpoints):
-            if route in flask.request.path:
-                time.sleep((DELAY_TIME * i) + DELAY_TIME)
+            if route in quart.request.path:
+                await asyncio.sleep((DELAY_TIME * i) + DELAY_TIME)
 
     app.server.before_request(delay)
     dash_duo.start_server(app)
