@@ -1,13 +1,40 @@
+### Long Callback Test runs 2024-11-14
+Results (263.18s):
+7 passed
+11 failed
+  - [x] tests/integration/long_callback/test_basic_long_callback008.py:8 ~~test_lcbc008_long_callbacks_error[diskcache]~~
+    - set debug ui true in app instatiation
+  - [x] tests/integration/long_callback/test_basic_long_callback010.py:8 ~~test_lcbc010_side_updates[diskcache]~~
+    - passes individually
+  - [x] tests/integration/long_callback/test_basic_long_callback011.py:8 ~~test_lcbc011_long_pattern_matching[diskcache]~~
+    - passes individually
+  - [x] tests/integration/long_callback/test_basic_long_callback012.py:9 ~~test_lcbc012_long_callback_ctx[diskcache]~~
+    - passes individually
+  - [x] tests/integration/long_callback/test_basic_long_callback013.py:8 ~~test_lcbc013_unordered_state_input[diskcache]~~
+    - passes individually
+  - [x] tests/integration/long_callback/test_basic_long_callback014.py:8 ~~test_lcbc014_progress_delete[diskcache]~~
+    - passes individually
+  - [x] tests/integration/long_callback/test_basic_long_callback015.py:8 ~~test_lcbc015_diff_outputs_same_func[diskcache]~~
+    - passes individually
+  - [x] tests/integration/long_callback/test_basic_long_callback016.py:9 ~~test_lcbc016_multi_page_cancel[diskcache]~~
+    - passes individually
+  - [x] tests/integration/long_callback/test_basic_long_callback017.py:4 ~~test_lcbc017_long_callback_set_props[diskcache]~~
+    - made set props sync again so longcallbacks can stay sync. Have to look how I can patch Background Callbackmanagers to async. 
+    If needed, maybe the curreny to_thread approach is enough
+  - [x] tests/integration/long_callback/test_basic_long_callback018.py:4 test_lcbc018_background_callback_on_error[diskcache]
+  - [ ] tests/integration/long_callback/test_ctx_cookies.py:4 test_lcbc019_ctx_cookies[diskcache]
+1 skipped
+
 ### Assets Test runs 2024-11-14
 Results (80.63s):
 4 passed
 7 failed
   - [ ] tests/integration/multi_page/test_pages_layout.py:52 test_pala001_layout
-  - [x] tests/integration/multi_page/test_pages_layout.py:220 test_pala005_routing_inputs
+  - [x] tests/integration/multi_page/test_pages_layout.py:220 ~~test_pala005_routing_inputs~~
     - passes individually
-  - [x] tests/integration/multi_page/test_pages_layout.py:240 test_pala006_pages_external_library
+  - [x] tests/integration/multi_page/test_pages_layout.py:240 ~~test_pala006_pages_external_library~~
     - passes individually
-  - [x] tests/integration/multi_page/test_pages_layout.py:284 test_pala007_app_title_discription
+  - [x] tests/integration/multi_page/test_pages_layout.py:284 ~~test_pala007_app_title_discription~~
     - added path to page-1
   - [ ] tests/integration/multi_page/test_pages_relative_path.py:48 test_pare001_relative_path
   - [x] tests/integration/multi_page/test_pages_relative_path.py:58 
