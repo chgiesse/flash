@@ -11,10 +11,13 @@ import json
 import secrets
 import string
 import inspect
+import warnings
 from html import escape
 from functools import wraps
 from typing import Union
+from quart.utils import run_sync
 from dash.types import RendererHooks
+
 
 logger = logging.getLogger()
 
@@ -302,3 +305,22 @@ def get_caller_name():
             return s.frame.f_locals.get("__name__", "__main__")
 
     return "__main__"
+
+
+async def _invoke_callback(func, *func_args, **func_kwargs):
+
+    if inspect.iscoroutinefunction(func):
+        output_value = await func(*func_args, **func_kwargs)  # %% callback invoked %%
+
+    else:
+        output_value = await run_sync(func)(
+            *func_args, **func_kwargs
+        )  # %% callback invoked %%
+
+        warnings.warn(
+            f"Function '{func.__name__}' should be a coroutine function (defined with 'async def'). "
+            "While it will still work, this may impact performance and is deprecated.",
+            stacklevel=2,
+        )
+
+    return output_value
