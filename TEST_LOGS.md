@@ -1,3 +1,12 @@
+### Devtools Test runs 2024-11-14
+Results (100.19s):
+30 passed
+3 failed
+  - tests/integration/devtools/test_callback_timing.py:7 test_dvct001_callback_timing
+  - tests/integration/devtools/test_devtools_error_handling.py:86 test_dveh006_long_python_errors
+  - tests/integration/devtools/test_devtools_ui.py:226 test_dvui007_other_before_request_func
+1 skipped
+
 ### Long Callback Test runs 2024-11-14
 Results (263.18s):
 7 passed
