@@ -2107,6 +2107,7 @@ class Dash:
         if debug is None:
             debug = get_combined_config("debug", None, False)
 
+        debug_value = debug
         debug = self.enable_dev_tools(
             loop,
             debug,
@@ -2179,7 +2180,7 @@ class Dash:
                     extra_files.append(path)
 
         self.server.run(
-            host=host, port=port, debug=debug, loop=loop, **quart_run_options
+            host=host, port=port, debug=debug_value, loop=loop, **quart_run_options
         )
 
     def enable_pages(self):
