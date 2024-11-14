@@ -3,7 +3,7 @@ import requests
 from dash import Dash, Input, Output, html, dcc
 
 
-def test_cbmf001_bad_output_outputs(dash_thread_server):
+def test_cbmf001_bad_output_outputs(dash_multi_process_server):
     app = Dash(__name__)
     app.layout = html.Div(
         [
@@ -16,11 +16,11 @@ def test_cbmf001_bad_output_outputs(dash_thread_server):
     def update_output(value):
         return value
 
-    dash_thread_server(app)
+    dash_multi_process_server(app)
 
     # first a good request
     response = requests.post(
-        dash_thread_server.url + "/_dash-update-component",
+        dash_multi_process_server.url + "/_dash-update-component",
         json=dict(
             output="o1.children",
             outputs={"id": "o1", "property": "children"},
@@ -41,7 +41,7 @@ def test_cbmf001_bad_output_outputs(dash_thread_server):
     ]
     for outspeci in outspecs:
         response = requests.post(
-            dash_thread_server.url + "/_dash-update-component",
+            dash_multi_process_server.url + "/_dash-update-component",
             json=dict(
                 inputs=[{"id": "i", "property": "value", "value": 9}],
                 changedPropIds=["i.value"],
