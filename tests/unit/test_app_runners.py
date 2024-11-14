@@ -7,7 +7,7 @@ import dash
 from dash import html
 
 
-def test_threaded_server_smoke(dash_thread_server):
+def test_threaded_server_smoke(dash_multi_process_server):
     app = dash.Dash(__name__)
 
     app.layout = html.Div(
@@ -16,8 +16,8 @@ def test_threaded_server_smoke(dash_thread_server):
             html.Div(id="output", children="hello thread"),
         ]
     )
-    dash_thread_server(app, debug=True, use_reloader=False, use_debugger=True)
-    r = requests.get(dash_thread_server.url)
+    dash_multi_process_server(app, debug=True, use_reloader=False, use_debugger=True)
+    r = requests.get(dash_multi_process_server.url)
     assert r.status_code == 200, "the threaded server is reachable"
     assert 'id="react-entry-point"' in r.text, "the entrypoint is present"
 
