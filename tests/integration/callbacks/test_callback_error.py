@@ -3,7 +3,7 @@ from dash import Dash, html, Input, Output, set_props
 
 def test_cber001_error_handler(dash_duo):
     async def global_callback_error_handler(err):
-        await set_props("output-global", {"children": f"global: {err}"})
+        set_props("output-global", {"children": f"global: {err}"})
 
     app = Dash(on_error=global_callback_error_handler)
 
@@ -19,7 +19,7 @@ def test_cber001_error_handler(dash_duo):
     ]
 
     async def on_callback_error(err):
-        await set_props("error-message", {"children": f"message: {err}"})
+        set_props("error-message", {"children": f"message: {err}"})
         return f"callback: {err}"
 
     @app.callback(

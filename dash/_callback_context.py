@@ -270,7 +270,7 @@ class CallbackContext:
         return getattr(quart.g, "timing_information", {})
 
     @has_context
-    async def set_props(self, component_id: typing.Union[str, dict], props: dict):
+    def set_props(self, component_id: typing.Union[str, dict], props: dict):
         ctx_value = _get_context_value()
         if not hasattr(ctx_value, "updated_props"):
             ctx_value.updated_props = {}
@@ -327,8 +327,8 @@ class CallbackContext:
 callback_context = CallbackContext()
 
 
-async def set_props(component_id: typing.Union[str, dict], props: dict):
+def set_props(component_id: typing.Union[str, dict], props: dict):
     """
     Async version of set_props for setting props for a component not included in the callback outputs.
     """
-    await callback_context.set_props(component_id, props)
+    callback_context.set_props(component_id, props)

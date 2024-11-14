@@ -121,7 +121,7 @@ async def test3(n_clicks):
 
     timeout = 5
 
-    await set_props(
+    set_props(
         'output-3', 
         {
             'children': n_clicks

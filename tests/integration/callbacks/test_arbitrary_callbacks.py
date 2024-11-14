@@ -28,7 +28,7 @@ def test_arb001_global_set_props(dash_duo):
         prevent_initial_call=True,
     )
     async def on_click(n_clicks):
-        await set_props("secondary-output", {"children": "secondary"})
+        set_props("secondary-output", {"children": "secondary"})
         return f"Clicked {n_clicks} times"
 
     dash_duo.start_server(app)
@@ -57,14 +57,14 @@ def test_arb002_no_output_callbacks(dash_duo):
         prevent_initial_call=True,
     )
     async def no_output1(_):
-        await set_props("secondary-output", {"children": "no-output"})
+        set_props("secondary-output", {"children": "no-output"})
 
     @app.callback(
         Input("no-output2", "n_clicks"),
         prevent_initial_call=True,
     )
     async def no_output2(_):
-        await set_props("secondary-output", {"children": "no-output2"})
+        set_props("secondary-output", {"children": "no-output2"})
 
     @app.callback(
         Input("no-output3", "n_clicks"),
@@ -109,14 +109,14 @@ def test_arb003_arbitrary_pages(dash_duo, clear_pages_state):
         prevent_initial_call=True,
     )
     async def no_output(_):
-        await set_props("secondary-output", {"children": "no-output"})
+        set_props("secondary-output", {"children": "no-output"})
 
     @app.callback(
         Input("no-output2", "n_clicks"),
         prevent_initial_call=True,
     )
     async def no_output(_):
-        await set_props("secondary-output", {"children": "no-output2"})
+        set_props("secondary-output", {"children": "no-output2"})
 
     dash_duo.start_server(app)
 
@@ -141,7 +141,7 @@ def test_arb004_wildcard_set_props(dash_duo):
         prevent_initial_call=True,
     )
     async def on_click(n_clicks):
-        await set_props(
+        set_props(
             {"id": "output", "index": 0}, {"children": f"Clicked {n_clicks} times"}
         )
 
@@ -187,8 +187,8 @@ def test_arb006_multi_set_props(dash_duo):
         Input("start", "n_clicks"),
     )
     async def on_click(_):
-        await set_props("output", {"children": "changed"})
-        await set_props("output", {"style": {"background": "rgb(255,0,0)"}})
+        set_props("output", {"children": "changed"})
+        set_props("output", {"style": {"background": "rgb(255,0,0)"}})
 
     dash_duo.start_server(app)
     dash_duo.wait_for_element("#start").click()
