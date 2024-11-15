@@ -1,5 +1,4 @@
-Flask>=1.0.4,<3.1
-quart
+quart>=0.19.9,<1.0.0
 Werkzeug<3.1
 plotly>=5.0.0
 dash_html_components==2.0.0
