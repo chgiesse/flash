@@ -13,16 +13,15 @@ def read_req_file(req_type):
 
 
 setup(
-    name="dash",
+    name="flash",
     version=main_ns["__version__"],
-    author="Chris Parmer",
-    author_email="chris@plotly.com",
+    author="Christian Giessel",
+    author_email="christian.giessel@gmail.com",
     packages=find_packages(exclude=["tests*"]),
     include_package_data=True,
     license="MIT",
     description=(
-        "A Python framework for building reactive web-apps. "
-        "Developed by Plotly."
+        "Async port of plotly Dash"
     ),
     long_description=io.open("README.md", encoding="utf-8").read(),  # pylint: disable=consider-using-with
     long_description_content_type="text/markdown",
@@ -45,11 +44,11 @@ setup(
         ],
         "pytest11": ["dash = dash.testing.plugin"],
     },
-    url="https://plotly.com/dash",
+    url="https://github.com/chgiesse/flash",
     project_urls={
-        "Documentation": "https://dash.plotly.com",
-        "Source": "https://github.com/plotly/dash",
-        "Issue Tracker": "https://github.com/plotly/dash/issues",
+        "Documentation": "https://github.com/chgiesse/flash",
+        "Source": "https://github.com/chgiesse/flash",
+        "Issue Tracker": "https://github.com/chgiesse/flash/issues",
     },
     classifiers=[
         "Development Status :: 5 - Production/Stable",

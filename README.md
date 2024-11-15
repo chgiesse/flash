@@ -23,10 +23,10 @@ One of my biggest pain points in Dash was to handle database requests, forcing m
 Now the DB requests dont block each other and alot interaction can be outsourced to the URL. In order to enhace further responsiveness i am thinking about to add a LazyLoad compoent ([more-infos]('#TODO'))
 
 ### Caveats
-- background callbacks have to sync
+- background callbacks have run to sync
     - will be fixed in the future
     - sync callback gets put into a spearate exeuctor
-- dash testings - dash_duo had be changed to a multi process runner unstead of a threaded runner
+- dash testings - dash_duo had to be changed to a multi process runner instead of a threaded runner
 - somehow I can't turn of logs in dev mode
 
 ### Known Issues
