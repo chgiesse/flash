@@ -1,4 +1,4 @@
-import flask
+import quart
 import pytest
 
 from dash import Dash, Input, Output, State, MATCH, ALL, ALLSMALLER, html, dcc
@@ -704,7 +704,7 @@ def multipage_app(validation=False):
     validation_layout = html.Div([skeleton, layout_index, layout_page_1, layout_page_2])
 
     def validation_function():
-        return skeleton if flask.has_request_context() else validation_layout
+        return skeleton if quart.has_request_context() else validation_layout
 
     app.layout = validation_function if validation == "function" else skeleton
     if validation == "attribute":

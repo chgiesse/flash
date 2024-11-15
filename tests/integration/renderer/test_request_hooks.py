@@ -1,6 +1,6 @@
 import json
 import functools
-import flask
+import quart
 import pytest
 
 from flaky import flaky
@@ -255,15 +255,15 @@ def test_rdrh003_refresh_jwt(expiry_code, dash_duo):
         @functools.wraps(func)
         def wrap(*args, **kwargs):
             try:
-                if flask.request.method == "OPTIONS":
+                if quart.request.method == "OPTIONS":
                     return func(*args, **kwargs)
-                token = flask.request.headers.environ.get("HTTP_AUTHORIZATION")
+                token = quart.request.headers.environ.get("HTTP_AUTHORIZATION")
                 if required_jwt_len and (
                     not token or len(token) != required_jwt_len + len("Bearer ")
                 ):
                     # Read the data to prevent bug with base http server.
-                    flask.request.get_json(silent=True)
-                    flask.abort(expiry_code, description="JWT Expired " + str(token))
+                    quart.request.get_json(silent=True)
+                    quart.abort(expiry_code, description="JWT Expired " + str(token))
             except HTTPException as e:
                 return e
             return func(*args, **kwargs)
