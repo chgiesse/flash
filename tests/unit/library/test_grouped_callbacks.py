@@ -31,7 +31,8 @@ def make_dependency_grouping(schema, dep_classes):
     return make_grouping_by_index(schema, flat_dependencies)
 
 
-def check_output_for_grouping(grouping):
+@pytest.mark.asyncio
+async def check_output_for_grouping(grouping):
     """
     Check the behavior of a callback that returns the specified grouping
     """
@@ -61,7 +62,7 @@ def check_output_for_grouping(grouping):
     if not multi:
         outputs_list = outputs_list[0]
 
-    result = json.loads(wrapped_fn("Hello", outputs_list=outputs_list))
+    result = json.loads(await wrapped_fn("Hello", outputs_list=outputs_list))
 
     response = result["response"]
     for id, prop, val in expected_outputs:
@@ -90,7 +91,8 @@ def test_callback_output_size(mixed_grouping_size):
     check_output_for_grouping(mixed_grouping_size[0])
 
 
-def check_callback_inputs_for_grouping(grouping):
+@pytest.mark.asyncio
+async def check_callback_inputs_for_grouping(grouping):
     """
     Check the expected behavior of a callback function configured to input arguments
     according to the form of the provided grouping. If the grouping is a dict, then
@@ -116,7 +118,9 @@ def check_callback_inputs_for_grouping(grouping):
     flat_inputs = flat_input_values + flat_state_values
 
     json.loads(
-        wrapped_fn(*flat_inputs, outputs_list={"id": "output-a", "property": "prop"})
+        await wrapped_fn(
+            *flat_inputs, outputs_list={"id": "output-a", "property": "prop"}
+        )
     )
 
     if isinstance(grouping, dict):

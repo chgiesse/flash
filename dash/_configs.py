@@ -1,5 +1,5 @@
 import os
-import flask
+import quart
 
 # noinspection PyCompatibility
 from . import exceptions
@@ -64,7 +64,7 @@ def pathname_configs(
 
     Note that `requests_pathname_prefix` is the prefix for the AJAX calls that
     originate from the client (the web browser) and `routes_pathname_prefix` is
-    the prefix for the API routes on the backend (this flask server).
+    the prefix for the API routes on the backend (this quart server).
     `url_base_pathname` will set `requests_pathname_prefix` and
     `routes_pathname_prefix` to the same value.
     If you need these to be different values then you should set
@@ -126,7 +126,7 @@ def pages_folder_config(name, pages_folder, use_pages):
     if not pages_folder:
         return None
     is_custom_folder = str(pages_folder) != "pages"
-    pages_folder_path = os.path.join(flask.helpers.get_root_path(name), pages_folder)
+    pages_folder_path = os.path.join(quart.helpers.get_root_path(name), pages_folder)
     if (use_pages or is_custom_folder) and not os.path.isdir(pages_folder_path):
         error_msg = f"""
         A folder called `{pages_folder}` does not exist. If a folder for pages is not

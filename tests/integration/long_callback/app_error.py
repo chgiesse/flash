@@ -11,7 +11,7 @@ long_callback_manager = get_long_callback_manager()
 handle = long_callback_manager.handle
 
 app = dash.Dash(__name__, long_callback_manager=long_callback_manager)
-app.enable_dev_tools(debug=True, dev_tools_ui=True)
+# app.enable_dev_tools(debug=True, dev_tools_ui=True)
 app.layout = html.Div(
     [
         html.Div([html.P(id="output", children=["Button not clicked"])]),
@@ -63,4 +63,4 @@ def long_multi(n_clicks):
 
 
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    app.run_server(debug=True, dev_tools_ui=True)

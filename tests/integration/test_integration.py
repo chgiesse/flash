@@ -1,5 +1,5 @@
 import datetime
-import flask
+import quart
 import json
 import pytest
 import re
@@ -287,7 +287,7 @@ def nested_app(server, path, text):
 
 
 def test_inin025_url_base_pathname(dash_br, dash_thread_server):
-    server = flask.Flask(__name__)
+    server = quart.Quart(__name__)
     app = nested_app(server, "/app1/", "The first")
     nested_app(server, "/app2/", "The second")
 

@@ -3,7 +3,7 @@ from collections.abc import MutableSequence
 import re
 from textwrap import dedent
 from keyword import iskeyword
-import flask
+import quart
 
 from ._grouping import grouping_len, map_grouping
 from .development.base_component import Component
@@ -505,7 +505,7 @@ def validate_use_pages(config):
             "`dash.register_page()` must be called after app instantiation"
         )
 
-    if flask.has_request_context():
+    if quart.has_request_context():
         raise exceptions.PageError(
             """
             dash.register_page() can’t be called within a callback as it updates dash.page_registry, which is a global variable.

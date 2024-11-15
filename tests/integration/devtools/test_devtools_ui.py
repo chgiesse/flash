@@ -1,5 +1,5 @@
 from time import sleep
-import flask
+import quart
 
 from dash import Dash, Input, Output, dcc, html
 import dash.testing.wait as wait
@@ -223,7 +223,7 @@ def test_dvui006_no_undo_redo(dash_duo):
     dash_duo.wait_for_no_elements("._dash-undo-redo")
 
 
-def test_dvui007_other_before_request_func(dash_thread_server, dash_br):
+def test_dvui007_other_before_request_func(dash_multi_process_server, dash_br):
     # won't use `bash_br`, because it expects an dash app, but it gets an static html page.
     # we take only the selenium driver from `bash_br`, this driver has already been set-up.
     driver = dash_br.driver
@@ -236,9 +236,9 @@ def test_dvui007_other_before_request_func(dash_thread_server, dash_br):
     # create alternative response, for the endpoint '/'
     # servering an alternative response, will disable further `before_request` functions e.g. those by dash
     @app.server.before_request
-    def create_an_alternative_response():
-        if flask.request.endpoint == "/":
-            return flask.Response(
+    async def create_an_alternative_response():
+        if quart.request.endpoint == "/":
+            return quart.Response(
                 '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">\n'
                 "<title>Alternative repsonse</title>\n"
                 '<h1 id="alternative_id">Alternative response header</h1>\n',
@@ -246,7 +246,7 @@ def test_dvui007_other_before_request_func(dash_thread_server, dash_br):
                 mimetype="text/html",
             )
 
-    dash_thread_server.start(
+    dash_multi_process_server.start(
         app,
         debug=True,
         use_reloader=False,
@@ -254,5 +254,5 @@ def test_dvui007_other_before_request_func(dash_thread_server, dash_br):
         dev_tools_hot_reload=False,
     )
 
-    driver.get(dash_thread_server.url)
+    driver.get(dash_multi_process_server.url)
     dash_br.find_element("#alternative_id")
