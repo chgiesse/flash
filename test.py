@@ -27,7 +27,7 @@ external_scripts = ["https://unpkg.com/dash.nprogress@latest/dist/dash.nprogress
 
 app = Dash(__name__) # 
 server = app.server
-
+print(app.server.name)
 create_test_btn_id = lambda index: {"index": index, "type": "test-btn"}
 
 def create_appshell(content):
@@ -121,7 +121,7 @@ async def test3(n_clicks):
 
     timeout = 5
 
-    set_props(
+    await set_props(
         'output-3', 
         {
             'children': n_clicks
@@ -188,4 +188,9 @@ async def change_color(n_clicks):
     return color
 
 if __name__ == '__main__':
-    app.run(debug=False, port=8050)   
+    app.run(
+        debug=True, 
+        dev_tools_ui=True,
+        dev_tools_silence_routes_logging=True,
+        port=8050
+    )   
