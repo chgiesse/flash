@@ -152,7 +152,7 @@ def _get_traceback(secret, error: Exception):
         tbtools = None
 
     def _get_skip(error):
-        from dash._callback import (  # pylint: disable=import-outside-toplevel
+        from ._utils import (  # pylint: disable=import-outside-toplevel
             _invoke_callback,
         )
 
@@ -167,7 +167,7 @@ def _get_traceback(secret, error: Exception):
         return skip
 
     def _do_skip(error):
-        from dash._callback import (  # pylint: disable=import-outside-toplevel
+        from ._utils import (  # pylint: disable=import-outside-toplevel
             _invoke_callback,
         )
 
@@ -1679,10 +1679,10 @@ class Flash:
         if not set(methods).issubset(valid_methods):
             raise ValueError(f"methods should only contain {valid_methods}")
 
-        if any(route[0] == name for route in Dash.STARTUP_ROUTES):
+        if any(route[0] == name for route in Flash.STARTUP_ROUTES):
             raise ValueError(f"Route name '{name}' is already in use.")
 
-        Dash.STARTUP_ROUTES.append((name, view_func, methods))
+        Flash.STARTUP_ROUTES.append((name, view_func, methods))
 
     def setup_startup_routes(self):
         """
@@ -1821,7 +1821,7 @@ class Flash:
         )
 
         if dev_tools.silence_routes_logging:
-            logging.getLogger("werkzeug").setLevel(logging.ERROR)
+            logging.getLogger("hypercorn.access").disabled = True
 
         if dev_tools.hot_reload:
             _reload = self._hot_reload
