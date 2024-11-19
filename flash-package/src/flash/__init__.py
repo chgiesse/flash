@@ -9,6 +9,11 @@ from .flash import (
     page_container
 )
 
+from dash._patch import Patch
+from dash.long_callback import (
+    CeleryManager,
+    DiskcacheManager,
+)
 from dash.dependencies import (  # noqa: F401,E402
     Input,  # noqa: F401,E402
     Output,  # noqa: F401,E402,
