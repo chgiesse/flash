@@ -1821,7 +1821,7 @@ class Flash:
         )
 
         if dev_tools.silence_routes_logging:
-            logging.getLogger("werkzeug").setLevel(logging.ERROR)
+            logging.getLogger("hypercorn.access").disabled = True
 
         if dev_tools.hot_reload:
             _reload = self._hot_reload
