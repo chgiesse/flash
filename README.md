@@ -10,6 +10,11 @@ Flash makes it possible to run **true async callbacks** and layout functions whi
 
 With [dash-extensions](https://www.dash-extensions.com/) you can create native websocket components and handle server side events making your application realtime compatible. 
 
+#### Installation 
+```
+pip install dash-flash
+```
+
 #### Table Of Contents
 - [Motivation]('#motivation')
 - [Caveats](#caveats)
