@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "dash-flash"
+version = "0.1.0-alpha.1"
+description = "Flash - async port of the Dash framework"
+authors = ["chgiesse"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/chgiesse/flash"
+package-mode = true
+packages = [
+    { include = "flash", from = "src" }
+]
+
+
+[tool.poetry.dependencies]
+python = ">=3.8, <3.13"
+dash = "^2.18.2"
+Quart = "^0.19.9"
+quart-compress = "^0.2.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
