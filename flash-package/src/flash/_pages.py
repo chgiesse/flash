@@ -1,6 +1,6 @@
-from . import _validate
 from ._get_app import get_app
 from ._callback_context import context_value
+from ._validate import validate_use_pages
 
 import collections
 import importlib
@@ -14,6 +14,7 @@ from urllib.parse import parse_qs
 
 import quart
 
+from dash import _validate
 from dash._utils import AttributeDict
 from dash._get_paths import get_relative_path
 
@@ -309,7 +310,7 @@ def register_page(
     if context_value.get().get("ignore_register_page"):
         return
 
-    _validate.validate_use_pages(CONFIG)
+    validate_use_pages(CONFIG)
 
     page = dict(
         module=_validate.validate_module_name(module),
