@@ -207,7 +207,7 @@ def exception_handler(context):
 
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=too-many-arguments, too-many-locals
-class Dash:
+class Flash:
     """Dash is a framework for building analytical web applications.
     No JavaScript required.
 
