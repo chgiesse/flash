@@ -1679,10 +1679,10 @@ class Flash:
         if not set(methods).issubset(valid_methods):
             raise ValueError(f"methods should only contain {valid_methods}")
 
-        if any(route[0] == name for route in Dash.STARTUP_ROUTES):
+        if any(route[0] == name for route in Flash.STARTUP_ROUTES):
             raise ValueError(f"Route name '{name}' is already in use.")
 
-        Dash.STARTUP_ROUTES.append((name, view_func, methods))
+        Flash.STARTUP_ROUTES.append((name, view_func, methods))
 
     def setup_startup_routes(self):
         """
