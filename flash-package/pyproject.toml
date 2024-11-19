@@ -1,8 +1,8 @@
 [tool.poetry]
-name = "flash"
+name = "dash-flash"
 version = "0.1.0-alpha.1"
 description = "Flash - async port of the Dash framework"
-authors = ["Christian Giessel"]
+authors = ["chgiesse"]
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/chgiesse/flash"
