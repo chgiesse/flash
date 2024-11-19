@@ -19,15 +19,15 @@ from dash import (
 )
 
 from random import choice
+from logging import getLogger
 
 
 _dash_renderer._set_react_version("18.2.0")
 
 external_scripts = ["https://unpkg.com/dash.nprogress@latest/dist/dash.nprogress.js"]
 
-app = Dash(__name__) # 
-server = app.server
-print(app.server.name)
+app = Dash(__name__, external_scripts=external_scripts) # 
+
 create_test_btn_id = lambda index: {"index": index, "type": "test-btn"}
 
 def create_appshell(content):
@@ -189,8 +189,6 @@ async def change_color(n_clicks):
 
 if __name__ == '__main__':
     app.run(
-        debug=True, 
-        dev_tools_ui=True,
-        dev_tools_silence_routes_logging=True,
+        debug=True,
         port=8050
     )   

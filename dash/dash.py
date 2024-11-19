@@ -1813,7 +1813,7 @@ class Dash:
         )
 
         if dev_tools.silence_routes_logging:
-            logging.getLogger("werkzeug").setLevel(logging.ERROR)
+            logging.getLogger("hypercorn.access").disabled = True
 
         if dev_tools.hot_reload:
             _reload = self._hot_reload
@@ -1861,15 +1861,6 @@ class Dash:
                         for x in ["dcc", "html", "dash_table"]
                     ]
 
-            # def watch_hot_reload():
-            #     print("Is This in hot reload?", flush=True)
-            #     return asyncio.to_thread(
-            #         _watch.async_wath,
-            #         [self.config.assets_folder] + component_packages_dist,
-            #         self._on_assets_change,
-            #         sleep_time=dev_tools.hot_reload_watch_interval,
-            #     )
-
             async def watch_hot_reload():
                 return await _watch.watch(
                     folders=[self.config.assets_folder] + component_packages_dist,
@@ -1880,10 +1871,12 @@ class Dash:
             _reload.watch_task = loop.create_task(watch_hot_reload())
 
         if debug:
+
             if jupyter_dash.active:
                 jupyter_dash.configure_callback_exception_handling(
                     self, dev_tools.prune_errors
                 )
+
             elif dev_tools.prune_errors:
                 secret = gen_salt(20)
 
