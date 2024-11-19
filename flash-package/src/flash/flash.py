@@ -152,7 +152,7 @@ def _get_traceback(secret, error: Exception):
         tbtools = None
 
     def _get_skip(error):
-        from dash._callback import (  # pylint: disable=import-outside-toplevel
+        from ._utils import (  # pylint: disable=import-outside-toplevel
             _invoke_callback,
         )
 
@@ -167,7 +167,7 @@ def _get_traceback(secret, error: Exception):
         return skip
 
     def _do_skip(error):
-        from dash._callback import (  # pylint: disable=import-outside-toplevel
+        from ._utils import (  # pylint: disable=import-outside-toplevel
             _invoke_callback,
         )
 
