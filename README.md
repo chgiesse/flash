@@ -173,7 +173,7 @@ from dash_extensions import WebSocket
 from quart import websocket, json
 
 
-app = Dash(__name__)
+app = Flash(__name__)
 
 
 class ids:
