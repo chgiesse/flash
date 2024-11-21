@@ -33,11 +33,11 @@ from dash._utils import (
     AttributeDict,
     clean_property_name,
 )
+from ._callback_context import context_value
 from ._utils import _invoke_callback
 
 from dash import _validate
 from dash.long_callback.managers import BaseLongCallbackManager
-from dash._callback_context import context_value
 
 
 class NoUpdate:
