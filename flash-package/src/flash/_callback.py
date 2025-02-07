@@ -1,8 +1,9 @@
 import collections
 import hashlib
 from functools import wraps
-<<<<<<< flash-package/src/flash/_callback.py
-from typing import Callable, Optional, Any
+
+from typing import Callable, Optional, Any, List, Tuple, Union
+
 
 import quart
 
@@ -10,73 +11,37 @@ from dash.dependencies import (
     handle_callback_args,
     handle_grouped_callback_args,
     Output,
-)
-from dash.development.base_component import ComponentRegistry
-from dash.exceptions import (
-=======
-
-from typing import Callable, Optional, Any, List, Tuple, Union
-
-
-import quart
-
-from .dependencies import (
-    handle_callback_args,
-    handle_grouped_callback_args,
-    Output,
     ClientsideFunction,
     Input,
 )
-from .development.base_component import ComponentRegistry
-from .exceptions import (
->>>>>>> dash/_callback.py
+from dash.development.base_component import ComponentRegistry
+from dash.exceptions import (
     InvalidCallbackReturnValue,
     PreventUpdate,
     WildcardInLongCallback,
     MissingLongCallbackManagerError,
-<<<<<<< flash-package/src/flash/_callback.py
-    LongCallbackError,
-    ImportedInsideCallbackError,
-)
-
-from dash._grouping import (
-=======
     BackgroundCallbackError,
     ImportedInsideCallbackError,
 )
 
-from ._grouping import (
->>>>>>> dash/_callback.py
+from dash._grouping import (
     flatten_grouping,
     make_grouping_by_index,
     grouping_len,
 )
-<<<<<<< flash-package/src/flash/_callback.py
 from dash._utils import (
-=======
-from ._utils import (
->>>>>>> dash/_callback.py
     create_callback_id,
     stringify_id,
     to_json,
     coerce_to_list,
     AttributeDict,
     clean_property_name,
-<<<<<<< flash-package/src/flash/_callback.py
 )
-from ._callback_context import context_value
-from ._utils import _invoke_callback
 
 from dash import _validate
-from dash.long_callback.managers import BaseLongCallbackManager
-=======
-    _invoke_callback,
-)
-
-from . import _validate
-from .background_callback.managers import BaseBackgroundCallbackManager
+from dash.background_callback.managers import BaseBackgroundCallbackManager
 from ._callback_context import context_value
->>>>>>> dash/_callback.py
+from ._utils import _invoke_callback
 
 
 class NoUpdate:
@@ -98,16 +63,6 @@ GLOBAL_INLINE_SCRIPTS = []
 # pylint: disable=too-many-locals
 def callback(
     *_args,
-<<<<<<< flash-package/src/flash/_callback.py
-    background=False,
-    interval=1000,
-    progress=None,
-    progress_default=None,
-    running=None,
-    cancel=None,
-    manager=None,
-    cache_args_to_ignore=None,
-=======
     background: bool = False,
     interval: int = 1000,
     progress: Optional[Output] = None,
@@ -116,7 +71,6 @@ def callback(
     cancel: Optional[List[Input]] = None,
     manager: Optional[BaseBackgroundCallbackManager] = None,
     cache_args_to_ignore: Optional[list] = None,
->>>>>>> dash/_callback.py
     on_error: Optional[Callable[[Exception], Any]] = None,
     **_kwargs,
 ):
@@ -139,19 +93,11 @@ def callback(
 
     :Keyword Arguments:
         :param background:
-<<<<<<< flash-package/src/flash/_callback.py
             Mark the callback as a long callback to execute in a manager for
             callbacks that take a long time without locking up the Dash app
             or timing out.
         :param manager:
             A long callback manager instance. Currently, an instance of one of
-=======
-            Mark the callback as a background callback to execute in a manager for
-            callbacks that take a long time without locking up the Dash app
-            or timing out.
-        :param manager:
-            A background callback manager instance. Currently, an instance of one of
->>>>>>> dash/_callback.py
             `DiskcacheManager` or `CeleryManager`.
             Defaults to the `background_callback_manager` instance provided to the
             `dash.Dash constructor`.
@@ -195,22 +141,14 @@ def callback(
             this should be a list of argument names as strings. Otherwise,
             this should be a list of argument indices as integers.
         :param interval:
-<<<<<<< flash-package/src/flash/_callback.py
-            Time to wait between the long callback update requests.
-=======
             Time to wait between the background callback update requests.
->>>>>>> dash/_callback.py
         :param on_error:
             Function to call when the callback raises an exception. Receives the
             exception object as first argument. The callback_context can be used
             to access the original callback inputs, states and output.
     """
 
-<<<<<<< flash-package/src/flash/_callback.py
-    long_spec = None
-=======
     background_spec = None
->>>>>>> dash/_callback.py
 
     config_prevent_initial_callbacks = _kwargs.pop(
         "config_prevent_initial_callbacks", False
@@ -219,27 +157,11 @@ def callback(
     callback_list = _kwargs.pop("callback_list", GLOBAL_CALLBACK_LIST)
 
     if background:
-<<<<<<< flash-package/src/flash/_callback.py
-        long_spec = {
-=======
         background_spec: Any = {
->>>>>>> dash/_callback.py
             "interval": interval,
         }
 
         if manager:
-<<<<<<< flash-package/src/flash/_callback.py
-            long_spec["manager"] = manager
-
-        if progress:
-            long_spec["progress"] = coerce_to_list(progress)
-            validate_long_inputs(long_spec["progress"])
-
-        if progress_default:
-            long_spec["progressDefault"] = coerce_to_list(progress_default)
-
-            if not len(long_spec["progress"]) == len(long_spec["progressDefault"]):
-=======
             background_spec["manager"] = manager
 
         if progress:
@@ -252,22 +174,12 @@ def callback(
             if not len(background_spec["progress"]) == len(
                 background_spec["progressDefault"]
             ):
->>>>>>> dash/_callback.py
                 raise Exception(
                     "Progress and progress default needs to be of same length"
                 )
 
         if cancel:
             cancel_inputs = coerce_to_list(cancel)
-<<<<<<< flash-package/src/flash/_callback.py
-            validate_long_inputs(cancel_inputs)
-
-            long_spec["cancel"] = [c.to_dict() for c in cancel_inputs]
-            long_spec["cancel_inputs"] = cancel_inputs
-
-        if cache_args_to_ignore:
-            long_spec["cache_args_to_ignore"] = cache_args_to_ignore
-=======
             validate_background_inputs(cancel_inputs)
 
             background_spec["cancel"] = [c.to_dict() for c in cancel_inputs]
@@ -275,7 +187,6 @@ def callback(
 
         if cache_args_to_ignore:
             background_spec["cache_args_to_ignore"] = cache_args_to_ignore
->>>>>>> dash/_callback.py
 
     return register_callback(
         callback_list,
@@ -283,44 +194,28 @@ def callback(
         config_prevent_initial_callbacks,
         *_args,
         **_kwargs,
-<<<<<<< flash-package/src/flash/_callback.py
-        long=long_spec,
-=======
         background=background_spec,
->>>>>>> dash/_callback.py
         manager=manager,
         running=running,
         on_error=on_error,
     )
 
 
-<<<<<<< flash-package/src/flash/_callback.py
-def validate_long_inputs(deps):
-=======
 def validate_background_inputs(deps):
->>>>>>> dash/_callback.py
     for dep in deps:
         if dep.has_wildcard():
             raise WildcardInLongCallback(
                 f"""
-<<<<<<< flash-package/src/flash/_callback.py
-                long callbacks does not support dependencies with
-=======
                 background callbacks does not support dependencies with
->>>>>>> dash/_callback.py
                 pattern-matching ids
                     Received: {repr(dep)}\n"""
             )
 
 
-<<<<<<< flash-package/src/flash/_callback.py
-def clientside_callback(clientside_function, *args, **kwargs):
-=======
 ClientsideFuncType = Union[str, ClientsideFunction]
 
 
 def clientside_callback(clientside_function: ClientsideFuncType, *args, **kwargs):
->>>>>>> dash/_callback.py
     return register_clientside_callback(
         GLOBAL_CALLBACK_LIST,
         GLOBAL_CALLBACK_MAP,
@@ -343,11 +238,7 @@ def insert_callback(
     state,
     inputs_state_indices,
     prevent_initial_call,
-<<<<<<< flash-package/src/flash/_callback.py
-    long=None,
-=======
     background=None,
->>>>>>> dash/_callback.py
     manager=None,
     running=None,
     dynamic_creator: Optional[bool] = False,
@@ -369,15 +260,9 @@ def insert_callback(
         # prevent_initial_call can be a string "initial_duplicates"
         # which should not prevent the initial call.
         "prevent_initial_call": prevent_initial_call is True,
-<<<<<<< flash-package/src/flash/_callback.py
-        "long": long
-        and {
-            "interval": long["interval"],
-=======
         "background": background
         and {
             "interval": background["interval"],
->>>>>>> dash/_callback.py
         },
         "dynamic_creator": dynamic_creator,
         "no_output": no_output,
@@ -390,11 +275,7 @@ def insert_callback(
         "state": callback_spec["state"],
         "outputs_indices": outputs_indices,
         "inputs_state_indices": inputs_state_indices,
-<<<<<<< flash-package/src/flash/_callback.py
-        "long": long,
-=======
         "background": background,
->>>>>>> dash/_callback.py
         "output": output,
         "raw_inputs": inputs,
         "manager": manager,
@@ -436,11 +317,7 @@ def register_callback(
         multi = True
         has_output = len(output) > 0
 
-<<<<<<< flash-package/src/flash/_callback.py
-    long = _kwargs.get("long")
-=======
     background = _kwargs.get("background")
->>>>>>> dash/_callback.py
     manager = _kwargs.get("manager")
     running = _kwargs.get("running")
     on_error = _kwargs.get("on_error")
@@ -464,11 +341,7 @@ def register_callback(
         flat_state,
         inputs_state_indices,
         prevent_initial_call,
-<<<<<<< flash-package/src/flash/_callback.py
-        long=long,
-=======
         background=background,
->>>>>>> dash/_callback.py
         manager=manager,
         dynamic_creator=allow_dynamic_callbacks,
         running=running,
@@ -478,40 +351,25 @@ def register_callback(
     # pylint: disable=too-many-locals
     def wrap_func(func):
 
-<<<<<<< flash-package/src/flash/_callback.py
-        if long is not None:
-            long_key = BaseLongCallbackManager.register_func(
-                func,
-                long.get("progress") is not None,
-=======
         if background is not None:
             background_key = BaseBackgroundCallbackManager.register_func(
                 func,
                 background.get("progress") is not None,
->>>>>>> dash/_callback.py
                 callback_id,
             )
 
         @wraps(func)
         async def add_context(*args, **kwargs):
             output_spec = kwargs.pop("outputs_list")
-<<<<<<< flash-package/src/flash/_callback.py
-            app_callback_manager = kwargs.pop("long_callback_manager", None)
-=======
             app_callback_manager = kwargs.pop("background_callback_manager", None)
->>>>>>> dash/_callback.py
 
             callback_ctx = kwargs.pop(
                 "callback_context", AttributeDict({"updated_props": {}})
             )
             app = kwargs.pop("app", None)
-<<<<<<< flash-package/src/flash/_callback.py
-            callback_manager = long and long.get("manager", app_callback_manager)
-=======
             callback_manager = background and background.get(
                 "manager", app_callback_manager
             )
->>>>>>> dash/_callback.py
             error_handler = on_error or kwargs.pop("app_on_error", None)
             original_packages = set(ComponentRegistry.registry)
 
@@ -527,17 +385,10 @@ def register_callback(
             response: dict = {"multi": True}
             has_update = False
 
-<<<<<<< flash-package/src/flash/_callback.py
-            if long is not None:
-                if not callback_manager:
-                    raise MissingLongCallbackManagerError(
-                        "Running `long` callbacks requires a manager to be installed.\n"
-=======
             if background is not None:
                 if not callback_manager:
                     raise MissingLongCallbackManagerError(
                         "Running `background` callbacks requires a manager to be installed.\n"
->>>>>>> dash/_callback.py
                         "Available managers:\n"
                         "- Diskcache (`pip install dash[diskcache]`) to run callbacks in a separate Process"
                         " and store results on the local filesystem.\n"
@@ -545,11 +396,7 @@ def register_callback(
                         " and store results on redis.\n"
                     )
 
-<<<<<<< flash-package/src/flash/_callback.py
-                progress_outputs = long.get("progress")
-=======
                 progress_outputs = background.get("progress")
->>>>>>> dash/_callback.py
                 cache_key = quart.request.args.get("cacheKey")
                 job_id = quart.request.args.get("job")
                 old_job = quart.request.args.getlist("oldJob")
@@ -558,11 +405,7 @@ def register_callback(
                     func,
                     # Inputs provided as dict is kwargs.
                     func_args if func_args else func_kwargs,
-<<<<<<< flash-package/src/flash/_callback.py
-                    long.get("cache_args_to_ignore", []),
-=======
                     background.get("cache_args_to_ignore", []),
->>>>>>> dash/_callback.py
                 )
 
                 if old_job:
@@ -572,11 +415,7 @@ def register_callback(
                 if not cache_key:
                     cache_key = current_key
 
-<<<<<<< flash-package/src/flash/_callback.py
-                    job_fn = callback_manager.func_registry.get(long_key)
-=======
                     job_fn = callback_manager.func_registry.get(background_key)
->>>>>>> dash/_callback.py
 
                     job = callback_manager.call_job_fn(
                         cache_key,
@@ -602,19 +441,11 @@ def register_callback(
                         "job": job,
                     }
 
-<<<<<<< flash-package/src/flash/_callback.py
-                    cancel = long.get("cancel")
-                    if cancel:
-                        data["cancel"] = cancel
-
-                    progress_default = long.get("progressDefault")
-=======
                     cancel = background.get("cancel")
                     if cancel:
                         data["cancel"] = cancel
 
                     progress_default = background.get("progressDefault")
->>>>>>> dash/_callback.py
                     if progress_default:
                         data["progressDefault"] = {
                             str(o): x
@@ -638,19 +469,11 @@ def register_callback(
 
                 elif (
                     isinstance(output_value, dict)
-<<<<<<< flash-package/src/flash/_callback.py
-                    and "long_callback_error" in output_value
-                ):
-                    error = output_value.get("long_callback_error", {})
-                    exc = LongCallbackError(
-                        f"An error occurred inside a long callback: {error['msg']}\n{error['tb']}"
-=======
                     and "background_callback_error" in output_value
                 ):
                     error = output_value.get("background_callback_error", {})
                     exc = BackgroundCallbackError(
                         f"An error occurred inside a background callback: {error['msg']}\n{error['tb']}"
->>>>>>> dash/_callback.py
                     )
                     if error_handler:
                         output_value = error_handler(exc)
@@ -742,11 +565,7 @@ def register_callback(
                 output_value = []
                 flat_output_values = []
 
-<<<<<<< flash-package/src/flash/_callback.py
-            if not long:
-=======
             if not background:
->>>>>>> dash/_callback.py
                 has_update = _set_side_update(callback_ctx, response) or has_update
 
             if not has_update:
@@ -794,11 +613,7 @@ def register_clientside_callback(
     callback_map,
     config_prevent_initial_callbacks,
     inline_scripts,
-<<<<<<< flash-package/src/flash/_callback.py
-    clientside_function,
-=======
     clientside_function: ClientsideFuncType,
->>>>>>> dash/_callback.py
     *args,
     **kwargs,
 ):
