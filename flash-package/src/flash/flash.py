@@ -1,34 +1,47 @@
 import asyncio
-import functools
-import os
-import sys
+import base64
 import collections
+import functools
+import hashlib
 import importlib
+import inspect
+import logging
+import mimetypes
+import os
+import pkgutil
+import re
+import sys
+import time
+import traceback
 import warnings
 from contextvars import copy_context
 from importlib.machinery import ModuleSpec
-import pkgutil
-import re
-import logging
-import time
-import mimetypes
-import hashlib
-import base64
-import traceback
-import inspect
+from typing import Any, Callable, Dict, List, Optional, Union
 from urllib.parse import urlparse
-from typing import Any, Callable, Dict, Optional, Union, List
 
 import quart
-
 from importlib_metadata import version as _get_distribution_version
 
-from dash import dcc
-from dash import html
-from dash import dash_table
-
-from dash.fingerprint import build_fingerprint, check_fingerprint
-from dash.resources import Scripts, Css
+from dash import _dash_renderer, _get_paths, _validate, dash_table, dcc, html
+from dash._configs import get_combined_config, pathname_configs
+from dash._grouping import grouping_len, map_grouping, update_args_group
+from dash._jupyter import jupyter_dash
+from dash._utils import (
+    AttributeDict,
+    convert_to_AttributeDict,
+    format_tag,
+    gen_salt,
+    generate_hash,
+    get_caller_name,
+    hooks_to_js_object,
+    inputs_to_dict,
+    inputs_to_vals,
+    interpolate_str,
+    parse_version,
+    patch_collections_abc,
+    split_callback_id,
+    to_json,
+)
 from dash.dependencies import (
     Input,
     Output,
@@ -36,47 +49,24 @@ from dash.dependencies import (
 )
 from dash.development.base_component import ComponentRegistry
 from dash.exceptions import (
-    PreventUpdate,
-    InvalidResourceError,
-    ProxyError,
     DuplicateCallback,
+    InvalidResourceError,
+    PreventUpdate,
+    ProxyError,
 )
-from dash.version import __version__
-from ._configs import get_combined_config, pathname_configs, pages_folder_config
-from ._utils import (
-    AttributeDict,
-    format_tag,
-    generate_hash,
-    inputs_to_dict,
-    inputs_to_vals,
-    interpolate_str,
-    patch_collections_abc,
-    split_callback_id,
-    to_json,
-    convert_to_AttributeDict,
-    gen_salt,
-    hooks_to_js_object,
-    parse_version,
-    get_caller_name,
-)
-from . import _callback
-from . import _get_paths
-from . import _dash_renderer
-from . import _validate
-from . import _watch
-from . import _get_app
-
-from dash._grouping import map_grouping, grouping_len, update_args_group
-
-from . import _pages
-from ._pages import (
-    _parse_query_string,
-    _page_meta_tags,
-    _path_to_page,
-    _import_layouts_from_pages,
-)
-from dash._jupyter import jupyter_dash
+from dash.fingerprint import build_fingerprint, check_fingerprint
+from dash.resources import Css, Scripts
 from dash.types import RendererHooks
+from dash.version import __version__
+
+from . import _callback, _get_app, _pages, _watch
+from ._configs import pages_folder_config
+from ._pages import (
+    _import_layouts_from_pages,
+    _page_meta_tags,
+    _parse_query_string,
+    _path_to_page,
+)
 
 # Add explicit mapping for map files
 mimetypes.add_type("application/json", ".map", True)
@@ -772,7 +762,6 @@ class Flash:
             and not self.validation_layout
             and not self.config.suppress_callback_exceptions
         ):
-
             layout_value = self._layout_value()
             _validate.validate_layout(value, layout_value)
             self.validation_layout = layout_value
@@ -1291,7 +1280,6 @@ class Flash:
 
     # pylint: disable=R0915
     async def dispatch(self):
-
         body = await quart.request.get_json()
 
         g = AttributeDict({})
@@ -1372,9 +1360,7 @@ class Flash:
                 outputs_grouping = map_grouping(
                     lambda ind: flat_outputs[ind], outputs_indices
                 )
-                g.outputs_grouping = (
-                    outputs_grouping  # pylint: disable=assigning-non-slot
-                )
+                g.outputs_grouping = outputs_grouping  # pylint: disable=assigning-non-slot
                 g.using_outputs_grouping = (  # pylint: disable=assigning-non-slot
                     not isinstance(outputs_indices, int)
                     and outputs_indices != list(range(grouping_len(outputs_indices)))
