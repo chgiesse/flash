@@ -1,6 +1,6 @@
 {
   "name": "dash-renderer",
-  "version": "1.21.1",
+  "version": "2.0.0",
   "description": "render dash components in react",
   "main": "build/dash_renderer.min.js",
   "scripts": {
@@ -16,7 +16,7 @@
     "postbuild": "es-check es2015 ../deps/*.js build/*.js",
     "test": "karma start karma.conf.js --single-run",
     "format": "run-s private::format.*",
-    "lint": "run-s private::lint.*"
+    "lint": "run-s private::lint.* --continue-on-error"
   },
   "author": "chriddyp",
   "license": "MIT",
@@ -32,9 +32,9 @@
     "node-polyfill-webpack-plugin": "^2.0.1",
     "prop-types": "15.8.1",
     "ramda": "^0.29.1",
-    "react": "16.14.0",
+    "react": "18.3.1",
     "react-cytoscapejs": "^2.0.0",
-    "react-dom": "16.14.0",
+    "react-dom": "18.3.1",
     "react-json-tree": "^0.17.0",
     "react-redux": "^8.0.5",
     "redux": "^4.2.1",

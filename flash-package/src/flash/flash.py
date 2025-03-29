@@ -1,86 +1,72 @@
-from . import _callback
-from ._configs import pages_folder_config
-from ._watch import watch
-from . import _get_app
-from . import _pages
-from ._pages import (
-    _parse_query_string,
-    _path_to_page,
-    _import_layouts_from_pages,
-    _page_meta_tags,
-)
-
-import quart
 import asyncio
-import functools
-import os
-import sys
+import base64
 import collections
+import functools
+import hashlib
 import importlib
+import inspect
+import logging
+import mimetypes
+import os
+import pkgutil
+import re
+import sys
+import time
+import traceback
 import warnings
 from contextvars import copy_context
 from importlib.machinery import ModuleSpec
-import pkgutil
-import re
-import logging
-import time
-import mimetypes
-import hashlib
-import base64
-import traceback
-import inspect
+from typing import Any, Callable, Dict, List, Optional, Union
 from urllib.parse import urlparse
-from typing import Any, Callable, Dict, Optional, Union, List
 
-
+import quart
 from importlib_metadata import version as _get_distribution_version
 
-from dash import dcc
-from dash import html
-from dash import dash_table
-
-from dash.fingerprint import build_fingerprint, check_fingerprint
-from dash.resources import Scripts, Css
+from dash import _dash_renderer, _get_paths, _validate, dash_table, dcc, html
+from dash._configs import get_combined_config, pathname_configs
+from dash._grouping import grouping_len, map_grouping, update_args_group
+from dash._jupyter import jupyter_dash
+from dash._utils import (
+    AttributeDict,
+    convert_to_AttributeDict,
+    format_tag,
+    gen_salt,
+    generate_hash,
+    get_caller_name,
+    hooks_to_js_object,
+    inputs_to_dict,
+    inputs_to_vals,
+    interpolate_str,
+    parse_version,
+    patch_collections_abc,
+    split_callback_id,
+    to_json,
+)
 from dash.dependencies import (
     Input,
     Output,
     State,
 )
-
 from dash.development.base_component import ComponentRegistry
 from dash.exceptions import (
-    PreventUpdate,
-    InvalidResourceError,
-    ProxyError,
     DuplicateCallback,
+    InvalidResourceError,
+    PreventUpdate,
+    ProxyError,
 )
-from dash.version import __version__
-from dash._configs import get_combined_config, pathname_configs
-from dash._utils import (
-    AttributeDict,
-    format_tag,
-    generate_hash,
-    inputs_to_dict,
-    inputs_to_vals,
-    interpolate_str,
-    patch_collections_abc,
-    split_callback_id,
-    to_json,
-    convert_to_AttributeDict,
-    gen_salt,
-    hooks_to_js_object,
-    parse_version,
-    get_caller_name,
-)
-
-from dash import _get_paths
-from dash import _dash_renderer
-from dash import _validate
-
-from dash._jupyter import jupyter_dash
+from dash.fingerprint import build_fingerprint, check_fingerprint
+from dash.resources import Css, Scripts
 from dash.types import RendererHooks
-from dash._grouping import map_grouping, grouping_len, update_args_group
+from dash.version import __version__
 
+from . import _callback, _get_app, _pages, _watch
+from ._configs import pages_folder_config
+from ._pages import (
+    _import_layouts_from_pages,
+    _page_meta_tags,
+    _parse_query_string,
+    _path_to_page,
+)
 
 # Add explicit mapping for map files
 mimetypes.add_type("application/json", ".map", True)
@@ -424,9 +410,6 @@ class Flash:
         plugins: Optional[list] = None,
         title: str = "Dash",
         update_title: str = "Updating...",
-        long_callback_manager: Optional[
-            Any
-        ] = None,  # Type should be specified if possible
         background_callback_manager: Optional[
             Any
         ] = None,  # Type should be specified if possible
@@ -559,15 +542,8 @@ class Flash:
         )
 
         self._assets_files = []
-        self._long_callback_count = 0
-        if long_callback_manager:
-            warnings.warn(
-                DeprecationWarning(
-                    "`long_callback_manager` is deprecated and will be remove in Dash 3.0, "
-                    "use `background_callback_manager` instead."
-                )
-            )
-        self._background_manager = background_callback_manager or long_callback_manager
+
+        self._background_manager = background_callback_manager
 
         self.logger = logging.getLogger(__name__)
 
@@ -586,6 +562,8 @@ class Flash:
             for plugin in plugins:
                 plugin.plug(self)
 
+        self._setup_hooks()
+
         # tracks internally if a function already handled at least one request.
         self._got_first_request = {"pages": False, "setup_server": False}
 
@@ -600,6 +578,38 @@ class Flash:
                 "See https://dash.plotly.com/dash-in-jupyter for more details."
             )
         self.setup_startup_routes()
+
+    def _setup_hooks(self):
+        # pylint: disable=import-outside-toplevel,protected-access
+        from dash._hooks import HooksManager
+
+        self._hooks = HooksManager
+        self._hooks.register_setuptools()
+
+        for setup in self._hooks.get_hooks("setup"):
+            setup(self)
+
+        for hook in self._hooks.get_hooks("callback"):
+            callback_args, callback_kwargs = hook.data
+            self.callback(*callback_args, **callback_kwargs)(hook.func)
+
+        for (
+            clientside_function,
+            args,
+            kwargs,
+        ) in self._hooks.hooks._clientside_callbacks:
+            _callback.register_clientside_callback(
+                self._callback_list,
+                self.callback_map,
+                self.config.prevent_initial_callbacks,
+                self._inline_scripts,
+                clientside_function,
+                *args,
+                **kwargs,
+            )
+
+        if self._hooks.get_hooks("error"):
+            self._on_error = self._hooks.HookErrorHandler(self._on_error)
 
     def init_app(self, app=None, **kwargs):
         """Initialize the parts of Dash that require a quart app."""
@@ -701,6 +711,9 @@ class Flash:
                 "_alive_" + jupyter_dash.alive_token, jupyter_dash.serve_alive
             )
 
+        for hook in self._hooks.get_hooks("routes"):
+            self._add_url(hook.data["name"], hook.func, hook.data["methods"])
+
         # catch-all for front-end routes, used by dcc.Location
         self._add_url("<path:path>", self.index)
 
@@ -749,7 +762,6 @@ class Flash:
             and not self.validation_layout
             and not self.config.suppress_callback_exceptions
         ):
-
             layout_value = self._layout_value()
             _validate.validate_layout(value, layout_value)
             self.validation_layout = layout_value
@@ -766,6 +778,9 @@ class Flash:
 
     async def serve_layout(self):
         layout = self._layout_value()
+
+        for hook in self._hooks.get_hooks("layout"):
+            layout = hook(layout)
 
         # TODO - Set browser cache limit - pass hash into frontend
         return quart.Response(
@@ -909,17 +924,19 @@ class Flash:
 
         return srcs
 
+    # pylint: disable=protected-access
     def _generate_css_dist_html(self):
         external_links = self.config.external_stylesheets
-        links = self._collect_and_register_resources(self.css.get_all_css())
+        links = self._collect_and_register_resources(
+            self.css.get_all_css()
+            + self.css._resources._filter_resources(self._hooks.hooks._css_dist)
+        )
 
         return "\n".join(
             [
-                (
-                    format_tag("link", link, opened=True)
-                    if isinstance(link, dict)
-                    else f'<link rel="stylesheet" href="{link}">'
-                )
+                format_tag("link", link, opened=True)
+                if isinstance(link, dict)
+                else f'<link rel="stylesheet" href="{link}">'
                 for link in (external_links + links)
             ]
         )
@@ -962,6 +979,9 @@ class Flash:
                 + self.scripts._resources._filter_resources(
                     dash_table._js_dist, dev_bundles=dev
                 )
+                + self.scripts._resources._filter_resources(
+                    self._hooks.hooks._js_dist, dev_bundles=dev
+                )
             )
         )
 
@@ -970,11 +990,9 @@ class Flash:
 
         return "\n".join(
             [
-                (
-                    format_tag("script", src)
-                    if isinstance(src, dict)
-                    else f'<script src="{src}"></script>'
-                )
+                format_tag("script", src)
+                if isinstance(src, dict)
+                else f'<script src="{src}"></script>'
                 for src in srcs
             ]
             + [f"<script>{src}</script>" for src in self._inline_scripts]
@@ -1086,6 +1104,9 @@ class Flash:
             favicon=favicon,
             renderer=renderer,
         )
+
+        for hook in self._hooks.get_hooks("index"):
+            index = hook(index)
 
         checks = (
             _re_index_entry_id,
@@ -1257,41 +1278,8 @@ class Flash:
             **_kwargs,
         )
 
-    def long_callback(
-        self,
-        *_args,
-        manager=None,
-        interval=1000,
-        running=None,
-        cancel=None,
-        progress=None,
-        progress_default=None,
-        cache_args_to_ignore=None,
-        **_kwargs,
-    ):
-        """
-        Deprecated: long callbacks are now supported natively with regular callbacks,
-        use `background=True` with `dash.callback` or `app.callback` instead.
-        """
-        return _callback.callback(
-            *_args,
-            background=True,
-            manager=manager,
-            interval=interval,
-            progress=progress,
-            progress_default=progress_default,
-            running=running,
-            cancel=cancel,
-            cache_args_to_ignore=cache_args_to_ignore,
-            callback_map=self.callback_map,
-            callback_list=self._callback_list,
-            config_prevent_initial_callbacks=self.config.prevent_initial_callbacks,
-            **_kwargs,
-        )
-
     # pylint: disable=R0915
     async def dispatch(self):
-
         body = await quart.request.get_json()
 
         g = AttributeDict({})
@@ -1306,18 +1294,18 @@ class Flash:
         outputs_list = body.get("outputs")
         g.outputs_list = outputs_list  # pylint: disable=assigning-non-slot
 
-        g.input_values = input_values = (  # pylint: disable=assigning-non-slot
-            inputs_to_dict(inputs)
-        )
+        g.input_values = (  # pylint: disable=assigning-non-slot
+            input_values
+        ) = inputs_to_dict(inputs)
         g.state_values = inputs_to_dict(state)  # pylint: disable=assigning-non-slot
         changed_props = body.get("changedPropIds", [])
         g.triggered_inputs = [  # pylint: disable=assigning-non-slot
             {"prop_id": x, "value": input_values.get(x)} for x in changed_props
         ]
 
-        response = g.dash_response = (  # pylint: disable=assigning-non-slot
-            quart.Response(mimetype="application/json")
-        )
+        response = (
+            g.dash_response  # pylint: disable=assigning-non-slot
+        ) = quart.Response(mimetype="application/json")
 
         args = inputs_to_vals(inputs + state)
 
@@ -1327,7 +1315,7 @@ class Flash:
             g.background_callback_manager = (
                 cb.get("manager") or self._background_manager
             )
-            g.ignore_register_page = cb.get("long", False)
+            g.ignore_register_page = cb.get("background", False)
 
             # Add args_grouping
             inputs_state_indices = cb["inputs_state_indices"]
@@ -1372,9 +1360,7 @@ class Flash:
                 outputs_grouping = map_grouping(
                     lambda ind: flat_outputs[ind], outputs_indices
                 )
-                g.outputs_grouping = (
-                    outputs_grouping  # pylint: disable=assigning-non-slot
-                )
+                g.outputs_grouping = outputs_grouping  # pylint: disable=assigning-non-slot
                 g.using_outputs_grouping = (  # pylint: disable=assigning-non-slot
                     not isinstance(outputs_indices, int)
                     and outputs_indices != list(range(grouping_len(outputs_indices)))
@@ -1396,7 +1382,7 @@ class Flash:
                     func,
                     *args,
                     outputs_list=outputs_list,
-                    long_callback_manager=self._background_manager,
+                    background_callback_manager=self._background_manager,
                     callback_context=g,
                     app=self,
                     app_on_error=self._on_error,
@@ -1444,18 +1430,18 @@ class Flash:
         self._callback_list.extend(_callback.GLOBAL_CALLBACK_LIST)
         _callback.GLOBAL_CALLBACK_LIST.clear()
 
-        _validate.validate_long_callbacks(self.callback_map)
+        _validate.validate_background_callbacks(self.callback_map)
 
         cancels = {}
 
         for callback in self.callback_map.values():
-            long = callback.get("long")
-            if not long:
+            background = callback.get("background")
+            if not background:
                 continue
-            if "cancel_inputs" in long:
-                cancel = long.pop("cancel_inputs")
+            if "cancel_inputs" in background:
+                cancel = background.pop("cancel_inputs")
                 for c in cancel:
-                    cancels[c] = long.get("manager")
+                    cancels[c] = background.get("manager")
 
         if cancels:
             for cancel_input, manager in cancels.items():
@@ -1565,6 +1551,33 @@ class Flash:
         ]
 
     def get_asset_url(self, path):
+        """
+        Return the URL for the provided `path` in the assets directory.
+
+        If `assets_external_path` is set, `get_asset_url` returns
+        `assets_external_path` + `assets_url_path` + `path`, where
+        `path` is the path passed to `get_asset_url`.
+
+        Otherwise, `get_asset_url` returns
+        `requests_pathname_prefix` + `assets_url_path` + `path`, where
+        `path` is the path passed to `get_asset_url`.
+
+        Use `get_asset_url` in an app to access assets at the correct location
+        in different environments. In a deployed app on Dash Enterprise,
+        `requests_pathname_prefix` is the app name. For an app called "my-app",
+        `app.get_asset_url("image.png")` would return:
+
+        ```
+        /my-app/assets/image.png
+        ```
+
+        While the same app running locally, without
+        `requests_pathname_prefix` set, would return:
+
+        ```
+        /assets/image.png
+        ```
+        """
         return _get_paths.app_get_asset_url(self.config, path)
 
     def get_relative_path(self, path):
@@ -1848,21 +1861,15 @@ class Flash:
                         packages[index] = dash_spec
 
             component_packages_dist = [
-                (
-                    dash_test_path
-                    if isinstance(package, ModuleSpec)
-                    else (
-                        os.path.dirname(package.path)
-                        if hasattr(package, "path")
-                        else (
-                            os.path.dirname(
-                                package._path[0]  # pylint: disable=protected-access
-                            )
-                            if hasattr(package, "_path")
-                            else package.filename
-                        )
-                    )
+                dash_test_path
+                if isinstance(package, ModuleSpec)
+                else os.path.dirname(package.path)
+                if hasattr(package, "path")
+                else os.path.dirname(
+                    package._path[0]  # pylint: disable=protected-access
                 )
+                if hasattr(package, "_path")
+                else package.filename
                 for package in packages
             ]
 
@@ -1876,7 +1883,7 @@ class Flash:
                     ]
 
             async def watch_hot_reload():
-                return await watch(
+                return await _watch.watch(
                     folders=[self.config.assets_folder] + component_packages_dist,
                     on_change=self._on_assets_change,
                     sleep_time=dev_tools.hot_reload_watch_interval,
@@ -1992,21 +1999,22 @@ class Flash:
                         # pylint: disable=protected-access
                         delete_resource(self.css._resources._resources)
 
+    # pylint: disable=too-many-branches
     def run(
         self,
-        host="127.0.0.1",
-        port="8050",
-        proxy=None,
-        debug=None,
-        dev_tools_ui=None,
-        dev_tools_props_check=None,
-        dev_tools_serve_dev_bundles=None,
-        dev_tools_hot_reload=None,
-        dev_tools_hot_reload_interval=None,
-        dev_tools_hot_reload_watch_interval=None,
-        dev_tools_hot_reload_max_retry=None,
-        dev_tools_silence_routes_logging=None,
-        dev_tools_prune_errors=None,
+        host: Optional[str] = None,
+        port: Optional[Union[str, int]] = None,
+        proxy: Optional[str] = None,
+        debug: Optional[bool] = None,
+        dev_tools_ui: Optional[bool] = None,
+        dev_tools_props_check: Optional[bool] = None,
+        dev_tools_serve_dev_bundles: Optional[bool] = None,
+        dev_tools_hot_reload: Optional[bool] = None,
+        dev_tools_hot_reload_interval: Optional[int] = None,
+        dev_tools_hot_reload_watch_interval: Optional[int] = None,
+        dev_tools_hot_reload_max_retry: Optional[int] = None,
+        dev_tools_silence_routes_logging: Optional[bool] = None,
+        dev_tools_prune_errors: Optional[bool] = None,
         **quart_run_options,
     ):
         """Start the quart server in local mode, you should not run this on a
@@ -2015,11 +2023,11 @@ class Flash:
         If a parameter can be set by an environment variable, that is listed
         too. Values provided here take precedence over environment variables.
 
-        :param host: Host IP used to serve the application
+        :param host: Host IP used to serve the application, default to "127.0.0.1"
             env: ``HOST``
         :type host: string
 
-        :param port: Port used to serve the application
+        :param port: Port used to serve the application, default to "8050"
             env: ``PORT``
         :type port: int
 
@@ -2127,9 +2135,17 @@ class Flash:
             dev_tools_prune_errors,
         )
 
-        host = os.getenv("HOST", host)
-        port = os.getenv("PORT", port)
-        proxy = os.getenv("DASH_PROXY", proxy)
+        # Evaluate the env variables at runtime
+
+        if "CONDA_PREFIX" in os.environ:
+            # Some conda systems has issue with setting the host environment
+            # to an invalid hostname.
+            # Related issue: https://github.com/plotly/dash/issues/3069
+            host = host or "127.0.0.1"
+        else:
+            host = host or os.getenv("HOST", "127.0.0.1")
+        port = port or os.getenv("PORT", "8050")
+        proxy = proxy or os.getenv("DASH_PROXY")
 
         try:
             port = int(port)
@@ -2276,23 +2292,19 @@ class Flash:
                 # )
                 self.validation_layout = html.Div(
                     [
-                        (
-                            await page["layout"]()
-                            if inspect.iscoroutinefunction(page["layout"])
-                            else (
-                                page["layout"]()
-                                if callable(page["layout"])
-                                else page["layout"]
-                            )
-                        )
+                        await page["layout"]()
+                        if inspect.iscoroutinefunction(page["layout"])
+                        else page["layout"]()
+                        if callable(page["layout"])
+                        else page["layout"]
                         for page in _pages.PAGE_REGISTRY.values()
                     ]
                     + [
-                        (
-                            await self.layout()
-                            if inspect.iscoroutinefunction(self.layout)
-                            else self.layout() if callable(self.layout) else self.layout
-                        )
+                        await self.layout()
+                        if inspect.iscoroutinefunction(self.layout)
+                        else self.layout()
+                        if callable(self.layout)
+                        else self.layout
                     ]
                 )
 
@@ -2309,16 +2321,3 @@ class Flash:
                 Output(_ID_DUMMY, "children"),
                 Input(_ID_STORE, "data"),
             )
-
-    def run_server(self, *args, **kwargs):
-        """`run_server` is a deprecated alias of `run` and may be removed in a
-        future version. We recommend using `app.run` instead.
-
-        See `app.run` for usage information.
-        """
-        warnings.warn(
-            DeprecationWarning(
-                "Dash.run_server is deprecated and will be removed in Dash 3.0"
-            )
-        )
-        self.run(*args, **kwargs)
