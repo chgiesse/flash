@@ -2,7 +2,7 @@ from flask import jsonify
 import requests
 import pytest
 
-from dash import Dash, Input, Output, html, hooks, set_props
+from dash import Dash, Input, Output, html, hooks, set_props, ctx
 
 
 @pytest.fixture
@@ -14,6 +14,7 @@ def hook_cleanup():
     hooks._ns["error"] = []
     hooks._ns["callback"] = []
     hooks._ns["index"] = []
+    hooks._ns["custom_data"] = []
     hooks._css_dist = []
     hooks._js_dist = []
     hooks._finals = {}
@@ -114,14 +115,16 @@ def test_hook006_priority_final(hook_cleanup, dash_duo):
         layout.children.append(html.Div("second"))
         return layout
 
+    # This appears after the layout
+    @hooks.layout(priority=12)
+    def hook4(layout):
+        layout.children.append(html.Div("Prime"))
+        return layout
+
+    # Should still be last after setting a new max.
     @hooks.layout()
     def hook3(layout):
         layout.children.append(html.Div("third"))
-        return layout
-
-    @hooks.layout(priority=6)
-    def hook4(layout):
-        layout.children.insert(0, html.Div("Prime"))
         return layout
 
     app = Dash()
@@ -130,8 +133,8 @@ def test_hook006_priority_final(hook_cleanup, dash_duo):
 
     dash_duo.start_server(app)
     dash_duo.wait_for_text_to_equal("#final-wrapper > div:first-child", "final")
-    dash_duo.wait_for_text_to_equal("#body > div:first-child", "Prime")
-    dash_duo.wait_for_text_to_equal("#body > div:nth-child(2)", "layout")
+    dash_duo.wait_for_text_to_equal("#body > div:first-child", "layout")
+    dash_duo.wait_for_text_to_equal("#body > div:nth-child(2)", "Prime")
     dash_duo.wait_for_text_to_equal("#body > div:nth-child(3)", "first")
     dash_duo.wait_for_text_to_equal("#body > div:nth-child(4)", "second")
     dash_duo.wait_for_text_to_equal("#body > div:nth-child(5)", "third")
@@ -186,3 +189,24 @@ def test_hook009_hook_clientside_callback(hook_cleanup, dash_duo):
 
     dash_duo.wait_for_element("#hook-start").click()
     dash_duo.wait_for_text_to_equal("#hook-output", "Called 1")
+
+
+def test_hook010_hook_custom_data(hook_cleanup, dash_duo):
+    @hooks.custom_data("custom")
+    def custom_data(_):
+        return "custom-data"
+
+    app = Dash()
+    app.layout = [html.Button("insert", id="btn"), html.Div(id="output")]
+
+    @app.callback(
+        Output("output", "children"),
+        Input("btn", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def cb(_):
+        return ctx.custom_data.custom
+
+    dash_duo.start_server(app)
+    dash_duo.wait_for_element("#btn").click()
+    dash_duo.wait_for_text_to_equal("#output", "custom-data")

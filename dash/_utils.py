@@ -12,6 +12,8 @@ import secrets
 import string
 import inspect
 import warnings
+import re
+
 from html import escape
 from functools import wraps
 from typing import Union
@@ -305,6 +307,17 @@ def get_caller_name():
             return s.frame.f_locals.get("__name__", "__main__")
 
     return "__main__"
+
+
+def pascal_case(name: Union[str, None]):
+    s = re.sub(r"\s", "_", str(name))
+    # Replace leading `_`
+    s = re.sub("^[_]+", "", s)
+    if not s:
+        return s
+    return s[0].upper() + re.sub(
+        r"[\-_\.]+([a-z])", lambda match: match.group(1).upper(), s[1:]
+    )
 
 
 async def _invoke_callback(func, *func_args, **func_kwargs):

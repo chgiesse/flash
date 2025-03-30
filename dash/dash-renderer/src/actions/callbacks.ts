@@ -440,6 +440,7 @@ function handleServerside(
     const fetchCallback = () => {
         const headers = getCSRFHeader() as any;
         let url = `${urlBase(config)}_dash-update-component`;
+        let newBody = body;
 
         const addArg = (name: string, value: string) => {
             let delim = '?';
@@ -448,11 +449,19 @@ function handleServerside(
             }
             url = `${url}${delim}${name}=${value}`;
         };
-        if (cacheKey) {
-            addArg('cacheKey', cacheKey);
-        }
-        if (job) {
-            addArg('job', job);
+        if (cacheKey || job) {
+            if (cacheKey) addArg('cacheKey', cacheKey);
+            if (job) addArg('job', job);
+
+            // clear inputs as background callback doesnt need inputs, just verify for context
+            const tmpBody = JSON.parse(newBody);
+            for (let i = 0; i < tmpBody.inputs.length; i++) {
+                tmpBody.inputs[i]['value'] = null;
+            }
+            for (let i = 0; i < (tmpBody?.state || []).length; i++) {
+                tmpBody.state[i]['value'] = null;
+            }
+            newBody = JSON.stringify(tmpBody);
         }
 
         if (moreArgs) {
@@ -465,7 +474,7 @@ function handleServerside(
             mergeDeepRight(config.fetch, {
                 method: 'POST',
                 headers,
-                body
+                body: newBody
             })
         );
     };
@@ -664,9 +673,14 @@ function getTriggeredId(triggered: string[]): string | object | undefined {
     // for regular callbacks,  takes the first triggered prop_id, e.g.  "btn.n_clicks" and returns "btn"
     // for pattern matching callback, e.g. '{"index":0, "type":"btn"}' and returns {index:0, type: "btn"}'
     if (triggered && triggered.length) {
-        let componentId = triggered[0].split('.')[0];
-        if (componentId.startsWith('{')) {
-            componentId = JSON.parse(componentId);
+        const trig = triggered[0];
+        let componentId;
+        if (trig.startsWith('{')) {
+            componentId = JSON.parse(
+                trig.substring(0, trig.lastIndexOf('}') + 1)
+            );
+        } else {
+            componentId = trig.split('.')[0];
         }
         return componentId;
     }

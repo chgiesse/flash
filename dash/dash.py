@@ -7,6 +7,8 @@ import importlib
 import warnings
 from contextvars import copy_context
 from importlib.machinery import ModuleSpec
+from importlib.util import find_spec
+from importlib import metadata
 import pkgutil
 import re
 import logging
@@ -17,7 +19,7 @@ import base64
 import traceback
 import inspect
 from urllib.parse import urlparse
-from typing import Any, Callable, Dict, Optional, Union, List
+from typing import Any, Callable, Dict, Optional, Union, Sequence
 
 import quart
 
@@ -67,6 +69,7 @@ from . import _watch
 from . import _get_app
 
 from ._grouping import map_grouping, grouping_len, update_args_group
+from ._obsolete import ObsoleteChecker
 
 from . import _pages
 from ._pages import (
@@ -77,6 +80,15 @@ from ._pages import (
 )
 from ._jupyter import jupyter_dash
 from .types import RendererHooks
+
+# If dash_design_kit is installed, check for version
+ddk_version = None
+if find_spec("dash_design_kit"):
+    ddk_version = metadata.version("dash_design_kit")
+
+plotly_version = None
+if find_spec("plotly"):
+    plotly_version = metadata.version("plotly")
 
 # Add explicit mapping for map files
 mimetypes.add_type("application/json", ".map", True)
@@ -124,6 +136,8 @@ _ID_CONTENT = "_pages_content"
 _ID_LOCATION = "_pages_location"
 _ID_STORE = "_pages_store"
 _ID_DUMMY = "_pages_dummy"
+
+DASH_VERSION_URL = "https://dash-version.plotly.com:8080/current_version"
 
 # Handles the case in a newly cloned environment where the components are not yet generated.
 try:
@@ -203,7 +217,7 @@ def exception_handler(context):
 
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=too-many-arguments, too-many-locals
-class Dash:
+class Dash(ObsoleteChecker):
     """Dash is a framework for building analytical web applications.
     No JavaScript required.
 
@@ -406,14 +420,14 @@ class Dash:
         routes_pathname_prefix: Optional[str] = None,
         serve_locally: bool = True,
         compress: Optional[bool] = None,
-        meta_tags: Optional[List[Dict[str, Any]]] = None,
+        meta_tags: Optional[Sequence[Dict[str, Any]]] = None,
         index_string: str = _default_index,
-        external_scripts: Optional[List[Union[str, Dict[str, Any]]]] = None,
-        external_stylesheets: Optional[List[Union[str, Dict[str, Any]]]] = None,
+        external_scripts: Optional[Sequence[Union[str, Dict[str, Any]]]] = None,
+        external_stylesheets: Optional[Sequence[Union[str, Dict[str, Any]]]] = None,
         suppress_callback_exceptions: Optional[bool] = None,
         prevent_initial_callbacks: bool = False,
         show_undo_redo: bool = False,
-        extra_hot_reload_paths: Optional[List[str]] = None,
+        extra_hot_reload_paths: Optional[Sequence[str]] = None,
         plugins: Optional[list] = None,
         title: str = "Dash",
         update_title: str = "Updating...",
@@ -747,15 +761,6 @@ class Dash:
     def layout(self):
         return self._layout
 
-    def _layout_value(self):
-        layout = self._layout() if self._layout_is_function else self._layout
-
-        # Add any extra components
-        if self._extra_components:
-            layout = html.Div(children=[layout] + self._extra_components)
-
-        return layout
-
     @layout.setter
     def layout(self, value):
         _validate.validate_layout_type(value)
@@ -773,6 +778,15 @@ class Dash:
             layout_value = self._layout_value()
             _validate.validate_layout(value, layout_value)
             self.validation_layout = layout_value
+
+    def _layout_value(self):
+        layout = self._layout() if self._layout_is_function else self._layout
+
+        # Add any extra components
+        if self._extra_components:
+            layout = html.Div(children=[layout] + self._extra_components)
+
+        return layout
 
     @property
     def index_string(self):
@@ -803,11 +817,17 @@ class Dash:
             "requests_pathname_prefix": self.config.requests_pathname_prefix,
             "ui": self._dev_tools.ui,
             "props_check": self._dev_tools.props_check,
+            "disable_version_check": self._dev_tools.disable_version_check,
             "show_undo_redo": self.config.show_undo_redo,
             "suppress_callback_exceptions": self.config.suppress_callback_exceptions,
             "update_title": self.config.update_title,
             "children_props": ComponentRegistry.children_props,
             "serve_locally": self.config.serve_locally,
+            "dash_version": __version__,
+            "python_version": sys.version,
+            "dash_version_url": DASH_VERSION_URL,
+            "ddk_version": ddk_version,
+            "plotly_version": plotly_version,
         }
         if not self.config.serve_locally:
             config["plotlyjs_url"] = self._plotlyjs_url
@@ -1381,6 +1401,16 @@ class Dash:
                 g.using_outputs_grouping = []
             g.updated_props = {}
 
+            g.cookies = dict(**quart.request.cookies)
+            g.headers = dict(**quart.request.headers)
+            g.path = quart.request.full_path
+            g.remote = quart.request.remote_addr
+            g.origin = quart.request.origin
+            g.custom_data = AttributeDict({})
+
+            for hook in self._hooks.get_hooks("custom_data"):
+                g.custom_data[hook.data["namespace"]] = hook(g)
+
         except KeyError as missing_callback_function:
             msg = f"Callback function not found for output '{output}', perhaps you forgot to prepend the '@'?"
             raise KeyError(msg) from missing_callback_function
@@ -1741,6 +1771,12 @@ class Dash:
                 get_combined_config(attr, kwargs.get(attr, None), default=default)
             )
 
+        dev_tools["disable_version_check"] = get_combined_config(
+            "disable_version_check",
+            kwargs.get("disable_version_check", None),
+            default=False,
+        )
+
         return dev_tools
 
     def enable_dev_tools(
@@ -1755,6 +1791,7 @@ class Dash:
         dev_tools_hot_reload_watch_interval=None,
         dev_tools_hot_reload_max_retry=None,
         dev_tools_silence_routes_logging=None,
+        dev_tools_disable_version_check=None,
         dev_tools_prune_errors=None,
     ):
         """Activate the dev tools, called by `run`. If your application
@@ -1775,6 +1812,7 @@ class Dash:
             - DASH_HOT_RELOAD_WATCH_INTERVAL
             - DASH_HOT_RELOAD_MAX_RETRY
             - DASH_SILENCE_ROUTES_LOGGING
+            - DASH_DISABLE_VERSION_CHECK
             - DASH_PRUNE_ERRORS
 
         :param debug: Enable/disable all the dev tools unless overridden by the
@@ -1820,6 +1858,11 @@ class Dash:
             env: ``DASH_SILENCE_ROUTES_LOGGING``
         :type dev_tools_silence_routes_logging: bool
 
+        :param dev_tools_disable_version_check: Silence the upgrade
+            notification to prevent making requests to the Dash server.
+            env: ``DASH_DISABLE_VERSION_CHECK``
+        :type dev_tools_disable_version_check: bool
+
         :param dev_tools_prune_errors: Reduce tracebacks to just user code,
             stripping out Quart and Dash pieces. Only available with debugging.
             `True` by default, set to `False` to see the complete traceback.
@@ -1841,6 +1884,7 @@ class Dash:
             hot_reload_watch_interval=dev_tools_hot_reload_watch_interval,
             hot_reload_max_retry=dev_tools_hot_reload_max_retry,
             silence_routes_logging=dev_tools_silence_routes_logging,
+            disable_version_check=dev_tools_disable_version_check,
             prune_errors=dev_tools_prune_errors,
         )
 
@@ -2027,6 +2071,7 @@ class Dash:
         dev_tools_hot_reload_watch_interval: Optional[int] = None,
         dev_tools_hot_reload_max_retry: Optional[int] = None,
         dev_tools_silence_routes_logging: Optional[bool] = None,
+        dev_tools_disable_version_check: Optional[bool] = None,
         dev_tools_prune_errors: Optional[bool] = None,
         **quart_run_options,
     ):
@@ -2099,6 +2144,11 @@ class Dash:
             env: ``DASH_SILENCE_ROUTES_LOGGING``
         :type dev_tools_silence_routes_logging: bool
 
+        :param dev_tools_disable_version_check: Silence the upgrade
+            notification to prevent making requests to the Dash server.
+            env: ``DASH_DISABLE_VERSION_CHECK``
+        :type dev_tools_disable_version_check: bool
+
         :param dev_tools_prune_errors: Reduce tracebacks to just user code,
             stripping out Quart and Dash pieces. Only available with debugging.
             `True` by default, set to `False` to see the complete traceback.
@@ -2145,6 +2195,7 @@ class Dash:
             dev_tools_hot_reload_watch_interval,
             dev_tools_hot_reload_max_retry,
             dev_tools_silence_routes_logging,
+            dev_tools_disable_version_check,
             dev_tools_prune_errors,
         )
 

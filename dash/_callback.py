@@ -65,12 +65,13 @@ def callback(
     *_args,
     background: bool = False,
     interval: int = 1000,
-    progress: Optional[Output] = None,
+    progress: Optional[Union[List[Output], Output]] = None,
     progress_default: Any = None,
     running: Optional[List[Tuple[Output, Any, Any]]] = None,
-    cancel: Optional[List[Input]] = None,
+    cancel: Optional[Union[List[Input], Input]] = None,
     manager: Optional[BaseBackgroundCallbackManager] = None,
     cache_args_to_ignore: Optional[list] = None,
+    cache_ignore_triggered=True,
     on_error: Optional[Callable[[Exception], Any]] = None,
     **_kwargs,
 ):
@@ -140,6 +141,9 @@ def callback(
             with keyword arguments (Input/State provided in a dict),
             this should be a list of argument names as strings. Otherwise,
             this should be a list of argument indices as integers.
+        :param cache_ignore_triggered:
+            Whether to ignore which inputs triggered the callback when creating
+            the cache.
         :param interval:
             Time to wait between the background callback update requests.
         :param on_error:
@@ -187,6 +191,8 @@ def callback(
 
         if cache_args_to_ignore:
             background_spec["cache_args_to_ignore"] = cache_args_to_ignore
+
+        background_spec["cache_ignore_triggered"] = cache_ignore_triggered
 
     return register_callback(
         callback_list,
@@ -401,11 +407,16 @@ def register_callback(
                 job_id = quart.request.args.get("job")
                 old_job = quart.request.args.getlist("oldJob")
 
+                cache_ignore_triggered = background.get("cache_ignore_triggered", True)
+
                 current_key = callback_manager.build_cache_key(
                     func,
                     # Inputs provided as dict is kwargs.
                     func_args if func_args else func_kwargs,
                     background.get("cache_args_to_ignore", []),
+                    None
+                    if cache_ignore_triggered
+                    else callback_ctx.get("triggered_inputs", []),
                 )
 
                 if old_job:
