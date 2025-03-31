@@ -26,14 +26,12 @@ def _register_page(*args, page_components=None, page_properties=None, **kwargs):
     # Resolve page.
     module = kwargs["module"] if "module" in kwargs else args[0]
     page = PAGE_REGISTRY[module]
-    print("PATH: ", page["path"])
 
     # Register callbacks for page props.
     if page_properties is not None:
         for component in page_properties:
             _set_props(component, page["path"], page_properties[component])
     # Resolve any page components.
-    print("PAGE COPMONENTS: ", page_components, flush=True)
     if page_components is None:
         return
     for component in page_components:
@@ -133,14 +131,11 @@ def _prepare_container(container: Optional[Component] = None):
 
 
 def _setup_callbacks():
-    print("HALLO IN CALLBACK", flush=True)
     store = flash.flash._ID_STORE
     location = flash.flash._ID_LOCATION
     # Setup callbacks for page components.
     components = list(_COMPONENT_PATH_REGISTRY.keys())
-    print('Components: ', components)
     for component in components:
-        print(component, flush=True)
         # Wrap in div container, so we can hide it.
         cid = component._set_random_id()
         wrapper = html.Div(

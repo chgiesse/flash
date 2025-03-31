@@ -44,8 +44,8 @@ from dash.exceptions import (
     DuplicateCallback,
 )
 from dash.version import __version__
-from ._configs import get_combined_config, pathname_configs, pages_folder_config
-from ._utils import (
+from dash._configs import get_combined_config, pathname_configs, pages_folder_config
+from dash._utils import (
     AttributeDict,
     format_tag,
     generate_hash,
@@ -61,10 +61,10 @@ from ._utils import (
     parse_version,
     get_caller_name,
 )
+from dash import _dash_renderer
+from dash import _validate
+from dash import _get_paths
 from . import _callback
-from . import _get_paths
-from . import _dash_renderer
-from . import _validate
 from . import _watch
 from . import _get_app
 
