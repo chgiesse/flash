@@ -1,21 +1,23 @@
 # Flash
 
-## *Quart async Patch of Dash*.
+## _Quart async Patch of Dash_.
 
 `Flash` is a async patch of the [Plotly Dash](https://github.com/plotly/dash) library, building on Quart as backend instead of Flask. It is very inspired by the already existing [dash-async](https://github.com/snehilvj/async-dash) repo, but covering all **features up to `Dash` 2.18.2**
 
-Quarts async capabilities are directly baked into the standard library, making it easy to inject into existing projects. 
+Quarts async capabilities are directly baked into the standard library, making it easy to inject into existing projects.
 
 Flash makes it possible to run **true async callbacks** and layout functions while running sync functions in a separate thread (_asyncio.run_in_executor_).
 
-With [dash-extensions](https://www.dash-extensions.com/) you can create native websocket components and handle serverside events - making your application realtime compatible. 
+With [dash-extensions](https://www.dash-extensions.com/) you can create native websocket components and handle serverside events - making your application realtime compatible.
 
-## Installation 
+## Installation
+
 ```
 pip install dash-flash
 ```
 
 ## Table of Contents
+
 - [Motivation](#motivation)
 - [A Notice](#a-notice)
 - [Known Issues](#known-issues)
@@ -23,33 +25,39 @@ pip install dash-flash
 - [TODO](#todo)
 
 ## Motivation
+
 One of the biggest pain points in Dash was handling database requests, which often required:
+
 - Adding multiple callbacks to fetch a "lazy" component
 - Rendering the real component only when the lazy component's ID appears
 - Creating complex pattern matching callbacks for each component's data
 
 Dash Flash addresses these challenges by:
+
 - Ensuring I/O bound tasks don't block each other
 - Better state management via the URL due to async layout functions
-- Native websocket and HTTP/2 support 
+- Native websocket and HTTP/2 support
 
-Future improvements may include: 
+Future improvements may include:
+
 - native Websocket component which spawns and manages the websocket itself
 - LazyLoad component like [dash-grocery](https://github.com/IcToxi/dash-grocery), this will also increase responsiveness and overall better UI feeling
 - shared callbacks / channel callbacks like [dash-devices](https://github.com/richlegrand/dash_devices) offered. Will most likly be implemented with redis PubSub
 - ?? new routing system based on blueprints enabling parallel routes ??
 
 ## A Notice
+
 - Background callbacks must run synchronously
 - For Dash testing, use `dash_duo_mp` instead of `dash_duo`
 - currently not tested in prod, will soon on a basic K8s cluster running in a Docker container
 
 ### Known Issues
-- not all tests pass - detailed look in TEST_LOGS.md 
-    - 10 integration tests
-    - 2 unit tests
 
-### Usage 
+- not all tests pass - detailed look in TEST_LOGS.md
+  - 10 integration tests
+  - 2 unit tests
+
+### Usage
 
 modules that need to be imported from `flash`
 
@@ -68,16 +76,17 @@ from flash import (
 )
 ```
 
-Modules that can be imported from flash but also from dash - seeking your feedback here, would you preffer to keep them separate or just import from flash? 
+Modules that can be imported from flash but also from dash - seeking your feedback here, would you preffer to keep them separate or just import from flash?
+
 ```python
 from flash import (
-    Input,  
-    Output, 
-    State, 
+    Input,
+    Output,
+    State,
     ClientsideFunction,
     MATCH,
-    ALL, 
-    ALLSMALLER, 
+    ALL,
+    ALLSMALLER,
     get_asset_url,
     get_relative_path,
     strip_relative_path,
@@ -90,7 +99,7 @@ from flash import (
 from flash import Flash, callback, Input, Output, html
 from dash import _dash_renderer
 
-import time 
+import time
 import asyncio
 
 
@@ -102,7 +111,7 @@ app = Flash(__name__, external_scripts=external_scripts)
 
 
 class ids:
-    sync_btn_id = "sync-btn-id" 
+    sync_btn_id = "sync-btn-id"
     async_btn_id = "async-btn-id"
     sync_output = "sync-output"
     async_output = "async-output"
@@ -151,7 +160,7 @@ async def update_async(_):
     await asyncio.gather(
         long_running_async(1),
         long_running_async(0.7),
-        long_running_async(.5) 
+        long_running_async(.5)
     )
     duration = time.perf_counter() - start_time
     return duration
@@ -161,7 +170,7 @@ if __name__ == "__main__":
     app.run(debug=True)
 ```
 
-2. websocket support with [dash-extensions](https://github.com/emilhe/dash-extensions) - _(inspired by [dash-async](https://github.com/snehilvj/async-dash))_ 
+2. websocket support with [dash-extensions](https://github.com/emilhe/dash-extensions) - _(inspired by [dash-async](https://github.com/snehilvj/async-dash))_
 
 ```python
 import asyncio
@@ -182,7 +191,7 @@ class ids:
 
 
 layout = html.Div([
-    WebSocket(id=ids.websocket_id, url="ws://127.0.0.1:8050/test-ws"), 
+    WebSocket(id=ids.websocket_id, url="ws://127.0.0.1:8050/test-ws"),
     dcc.Graph(id=ids.graph_id)
 ])
 
@@ -216,4 +225,5 @@ if __name__ == "__main__":
 ```
 
 ## TODO
+
 - add Serverside Event example
