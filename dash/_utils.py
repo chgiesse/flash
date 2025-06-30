@@ -3,7 +3,7 @@ import shlex
 import sys
 import uuid
 import hashlib
-import collections
+from collections import abc
 import subprocess
 import logging
 import io
@@ -11,15 +11,14 @@ import json
 import secrets
 import string
 import inspect
-import warnings
 import re
+import warnings
+from quart.utils import run_sync
 
 from html import escape
 from functools import wraps
 from typing import Union
-from quart.utils import run_sync
-from dash.types import RendererHooks
-
+from .types import RendererHooks
 
 logger = logging.getLogger()
 
@@ -61,7 +60,7 @@ def generate_hash():
 
 # pylint: disable=no-member
 def patch_collections_abc(member):
-    return getattr(collections.abc, member)
+    return getattr(abc, member)
 
 
 class AttributeDict(dict):
@@ -121,9 +120,11 @@ class AttributeDict(dict):
 
         return super().__setitem__(key, val)
 
-    def update(self, other):
+    def update(self, other=None, **kwargs):
         # Overrides dict.update() to use __setitem__ above
-        for k, v in other.items():
+        # Needs default `None` and `kwargs` to satisfy type checking
+        source = other if other is not None else kwargs
+        for k, v in source.items():
             self[k] = v
 
     # pylint: disable=inconsistent-return-statements
@@ -178,7 +179,7 @@ def split_callback_id(callback_id):
     return {"id": id_, "property": prop}
 
 
-def stringify_id(id_):
+def stringify_id(id_) -> str:
     def _json(k, v):
         vstr = v.to_json() if hasattr(v, "to_json") else json.dumps(v)
         return f"{json.dumps(k)}:{vstr}"
@@ -254,7 +255,7 @@ def gen_salt(chars):
     )
 
 
-class OrderedSet(collections.abc.MutableSet):
+class OrderedSet(abc.MutableSet):
     def __init__(self, *args):
         self._data = []
         for i in args:

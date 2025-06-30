@@ -7,15 +7,15 @@ from typing import Callable, Optional, Any, List, Tuple, Union
 
 import quart
 
-from .dependencies import (
+from dash.dependencies import (
     handle_callback_args,
     handle_grouped_callback_args,
     Output,
     ClientsideFunction,
     Input,
 )
-from .development.base_component import ComponentRegistry
-from .exceptions import (
+from dash.development.base_component import ComponentRegistry
+from dash.exceptions import (
     InvalidCallbackReturnValue,
     PreventUpdate,
     WildcardInLongCallback,
@@ -24,24 +24,24 @@ from .exceptions import (
     ImportedInsideCallbackError,
 )
 
-from ._grouping import (
+from dash._grouping import (
     flatten_grouping,
     make_grouping_by_index,
     grouping_len,
 )
-from ._utils import (
+from dash._utils import (
     create_callback_id,
     stringify_id,
     to_json,
     coerce_to_list,
     AttributeDict,
     clean_property_name,
-    _invoke_callback,
 )
 
-from . import _validate
-from .background_callback.managers import BaseBackgroundCallbackManager
+from dash import _validate
+from dash.background_callback.managers import BaseBackgroundCallbackManager
 from ._callback_context import context_value
+from ._utils import _invoke_callback
 
 
 class NoUpdate:
@@ -98,7 +98,7 @@ def callback(
             callbacks that take a long time without locking up the Dash app
             or timing out.
         :param manager:
-            A background callback manager instance. Currently, an instance of one of
+            A long callback manager instance. Currently, an instance of one of
             `DiskcacheManager` or `CeleryManager`.
             Defaults to the `background_callback_manager` instance provided to the
             `dash.Dash constructor`.
@@ -191,8 +191,6 @@ def callback(
 
         if cache_args_to_ignore:
             background_spec["cache_args_to_ignore"] = cache_args_to_ignore
-
-        background_spec["cache_ignore_triggered"] = cache_ignore_triggered
 
     return register_callback(
         callback_list,
@@ -299,6 +297,269 @@ def _set_side_update(ctx, response) -> bool:
         response["sideUpdate"] = side_update
         return True
     return False
+
+
+def _initialize_context(args, kwargs, inputs_state_indices, has_output, insert_output):
+    """Initialize context and validate output specifications."""
+    app = kwargs.pop("app", None)
+    output_spec = kwargs.pop("outputs_list")
+    callback_ctx = kwargs.pop("callback_context", AttributeDict({"updated_props": {}}))
+    context_value.set(callback_ctx)
+    original_packages = set(ComponentRegistry.registry)
+
+    if has_output:
+        _validate.validate_output_spec(insert_output, output_spec, Output)
+
+    func_args, func_kwargs = _validate.validate_and_group_input_args(
+        args, inputs_state_indices
+    )
+    return (
+        output_spec,
+        callback_ctx,
+        func_args,
+        func_kwargs,
+        app,
+        original_packages,
+        False,
+    )
+
+
+def _get_callback_manager(
+    kwargs: dict, background: dict
+) -> Union[BaseBackgroundCallbackManager, None]:
+    """Set up the background callback and manage jobs."""
+    callback_manager = background.get(
+        "manager", kwargs.get("background_callback_manager", None)
+    )
+    if background is not None:
+        if not callback_manager:
+            raise MissingLongCallbackManagerError(
+                "Running `background` callbacks requires a manager to be installed.\n"
+                "Available managers:\n"
+                "- Diskcache (`pip install dash[diskcache]`) to run callbacks in a separate Process"
+                " and store results on the local filesystem.\n"
+                "- Celery (`pip install dash[celery]`) to run callbacks in a celery worker"
+                " and store results on redis.\n"
+            )
+
+    old_job = quart.request.args.getlist("oldJob")
+
+    if old_job:
+        for job in old_job:
+            callback_manager.terminate_job(job)
+
+    return callback_manager
+
+
+def _setup_background_callback(
+    kwargs, background, background_key, func, func_args, func_kwargs, callback_ctx
+):
+    """Set up the background callback and manage jobs."""
+    callback_manager = _get_callback_manager(kwargs, background)
+
+    progress_outputs = background.get("progress")
+
+    cache_ignore_triggered = background.get("cache_ignore_triggered", True)
+
+    cache_key = callback_manager.build_cache_key(
+        func,
+        # Inputs provided as dict is kwargs.
+        func_args if func_args else func_kwargs,
+        background.get("cache_args_to_ignore", []),
+        None if cache_ignore_triggered else callback_ctx.get("triggered_inputs", []),
+    )
+
+    job_fn = callback_manager.func_registry.get(background_key)
+
+    ctx_value = AttributeDict(**context_value.get())
+    ctx_value.ignore_register_page = True
+    ctx_value.pop("background_callback_manager")
+    ctx_value.pop("dash_response")
+
+    job = callback_manager.call_job_fn(
+        cache_key,
+        job_fn,
+        func_args if func_args else func_kwargs,
+        ctx_value,
+    )
+
+    data = {
+        "cacheKey": cache_key,
+        "job": job,
+    }
+
+    cancel = background.get("cancel")
+    if cancel:
+        data["cancel"] = cancel
+
+    progress_default = background.get("progressDefault")
+    if progress_default:
+        data["progressDefault"] = {
+            str(o): x for o, x in zip(progress_outputs, progress_default)
+        }
+    return to_json(data)
+
+
+def _progress_background_callback(response, callback_manager, background):
+    progress_outputs = background.get("progress")
+    cache_key = quart.request.args.get("cacheKey")
+
+    if progress_outputs:
+        # Get the progress before the result as it would be erased after the results.
+        progress = callback_manager.get_progress(cache_key)
+        if progress:
+            response["progress"] = {
+                str(x): progress[i] for i, x in enumerate(progress_outputs)
+            }
+
+
+def _update_background_callback(
+    error_handler, callback_ctx, response, kwargs, background, multi
+):
+    """Set up the background callback and manage jobs."""
+    callback_manager = _get_callback_manager(kwargs, background)
+
+    cache_key = quart.request.args.get("cacheKey")
+    job_id = quart.request.args.get("job")
+
+    _progress_background_callback(response, callback_manager, background)
+
+    output_value = callback_manager.get_result(cache_key, job_id)
+
+    return _handle_rest_background_callback(
+        output_value, callback_manager, response, error_handler, callback_ctx, multi
+    )
+
+
+def _handle_rest_background_callback(
+    output_value,
+    callback_manager,
+    response,
+    error_handler,
+    callback_ctx,
+    multi,
+    has_update=False,
+):
+    cache_key = quart.request.args.get("cacheKey")
+    job_id = quart.request.args.get("job")
+    # Must get job_running after get_result since get_results terminates it.
+    job_running = callback_manager.job_running(job_id)
+    if not job_running and output_value is callback_manager.UNDEFINED:
+        # Job canceled -> no output to close the loop.
+        output_value = NoUpdate()
+
+    elif isinstance(output_value, dict) and "background_callback_error" in output_value:
+        error = output_value.get("background_callback_error", {})
+        exc = BackgroundCallbackError(
+            f"An error occurred inside a background callback: {error['msg']}\n{error['tb']}"
+        )
+        if error_handler:
+            output_value = error_handler(exc)
+
+            if output_value is None:
+                output_value = NoUpdate()
+            # set_props from the error handler uses the original ctx
+            # instead of manager.get_updated_props since it runs in the
+            # request process.
+            has_update = (
+                _set_side_update(callback_ctx, response) or output_value is not None
+            )
+        else:
+            raise exc
+
+    if job_running and output_value is not callback_manager.UNDEFINED:
+        # cached results.
+        callback_manager.terminate_job(job_id)
+
+    if multi and isinstance(output_value, (list, tuple)):
+        output_value = [
+            NoUpdate() if NoUpdate.is_no_update(r) else r for r in output_value
+        ]
+    updated_props = callback_manager.get_updated_props(cache_key)
+    if len(updated_props) > 0:
+        response["sideUpdate"] = updated_props
+        has_update = True
+
+    if output_value is callback_manager.UNDEFINED:
+        return to_json(response), has_update, True
+    return output_value, has_update, False
+
+
+# pylint: disable=too-many-branches
+def _prepare_response(
+    output_value,
+    output_spec,
+    multi,
+    response,
+    callback_ctx,
+    app,
+    original_packages,
+    background,
+    has_update,
+    has_output,
+    output,
+    callback_id,
+    allow_dynamic_callbacks,
+):
+    """Prepare the response object based on the callback output."""
+    component_ids = collections.defaultdict(dict)
+
+    if has_output:
+        if not multi:
+            output_value, output_spec = [output_value], [output_spec]
+            flat_output_values = output_value
+        else:
+            if isinstance(output_value, (list, tuple)):
+                # For multi-output, allow top-level collection to be
+                # list or tuple
+                output_value = list(output_value)
+            if NoUpdate.is_no_update(output_value):
+                flat_output_values = [output_value]
+            else:
+                # Flatten grouping and validate grouping structure
+                flat_output_values = flatten_grouping(output_value, output)
+
+        if not NoUpdate.is_no_update(output_value):
+            _validate.validate_multi_return(
+                output_spec, flat_output_values, callback_id
+            )
+
+        for val, spec in zip(flat_output_values, output_spec):
+            if NoUpdate.is_no_update(val):
+                continue
+            for vali, speci in (
+                zip(val, spec) if isinstance(spec, list) else [[val, spec]]  # type: ignore[reportArgumentType]
+            ):
+                if not NoUpdate.is_no_update(vali):
+                    has_update = True
+                    id_str = stringify_id(speci["id"])
+                    prop = clean_property_name(speci["property"])
+                    component_ids[id_str][prop] = vali
+
+    else:
+        if output_value is not None:
+            raise InvalidCallbackReturnValue(
+                f"No-output callback received return value: {output_value}"
+            )
+
+    if not background:
+        has_update = _set_side_update(callback_ctx, response) or has_output
+
+    if not has_update:
+        raise PreventUpdate
+
+    if len(ComponentRegistry.registry) != len(original_packages):
+        diff_packages = list(
+            set(ComponentRegistry.registry).difference(original_packages)
+        )
+        if not allow_dynamic_callbacks:
+            raise ImportedInsideCallbackError(
+                f"Component librar{'y' if len(diff_packages) == 1 else 'ies'} was imported during callback.\n"
+                "You can set `_allow_dynamic_callbacks` to allow for development purpose only."
+            )
+        dist = app.get_dist(diff_packages)
+        response["dist"] = dist
+    return response.update({"response": component_ids})
 
 
 # pylint: disable=too-many-branches,too-many-statements
@@ -534,67 +795,21 @@ def register_callback(
                     else:
                         raise err
 
-            component_ids = collections.defaultdict(dict)
-
-            if has_output:
-                if not multi:
-                    output_value, output_spec = [output_value], [output_spec]
-                    flat_output_values = output_value
-                else:
-                    if isinstance(output_value, (list, tuple)):
-                        # For multi-output, allow top-level collection to be
-                        # list or tuple
-                        output_value = list(output_value)
-
-                    if NoUpdate.is_no_update(output_value):
-                        flat_output_values = [output_value]
-                    else:
-                        # Flatten grouping and validate grouping structure
-                        flat_output_values = flatten_grouping(output_value, output)
-
-                if not NoUpdate.is_no_update(output_value):
-                    _validate.validate_multi_return(
-                        output_spec, flat_output_values, callback_id
-                    )
-
-                for val, spec in zip(flat_output_values, output_spec):
-                    if NoUpdate.is_no_update(val):
-                        continue
-                    for vali, speci in (
-                        zip(val, spec) if isinstance(spec, list) else [[val, spec]]
-                    ):
-                        if not NoUpdate.is_no_update(vali):
-                            has_update = True
-                            id_str = stringify_id(speci["id"])
-                            prop = clean_property_name(speci["property"])
-                            component_ids[id_str][prop] = vali
-            else:
-                if output_value is not None:
-                    raise InvalidCallbackReturnValue(
-                        f"No-output callback received return value: {output_value}"
-                    )
-                output_value = []
-                flat_output_values = []
-
-            if not background:
-                has_update = _set_side_update(callback_ctx, response) or has_update
-
-            if not has_update:
-                raise PreventUpdate
-
-            response["response"] = component_ids
-
-            if len(ComponentRegistry.registry) != len(original_packages):
-                diff_packages = list(
-                    set(ComponentRegistry.registry).difference(original_packages)
-                )
-                if not allow_dynamic_callbacks:
-                    raise ImportedInsideCallbackError(
-                        f"Component librar{'y' if len(diff_packages) == 1 else 'ies'} was imported during callback.\n"
-                        "You can set `_allow_dynamic_callbacks` to allow for development purpose only."
-                    )
-                dist = app.get_dist(diff_packages)
-                response["dist"] = dist
+            _prepare_response(
+                output_value,
+                output_spec,
+                multi,
+                response,
+                callback_ctx,
+                app,
+                original_packages,
+                background,
+                has_update,
+                has_output,
+                output,
+                callback_id,
+                allow_dynamic_callbacks,
+            )
 
             try:
                 jsonResponse = to_json(response)

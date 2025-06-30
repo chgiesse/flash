@@ -17,9 +17,12 @@ _ID_CONTENT = "_component_content"
 _COMPONENT_PATH_REGISTRY: dict[Component, list[str]] = OrderedDict()
 _PROP_PATH_REGISTRY: dict[Component, dict[str, list[str]]] = OrderedDict()
 _CONTAINER_REGISTRY: dict[Component, Component] = {}
-_COMPONENT_CONTAINER = html.Div(id=_ID_CONTENT, disable_n_clicks=True, style=dict(display="contents"))
+_COMPONENT_CONTAINER = html.Div(
+    id=_ID_CONTENT, disable_n_clicks=True, style=dict(display="contents")
+)
 
 # region Monkey patch page registration function
+
 
 def _register_page(*args, page_components=None, page_properties=None, **kwargs):
     base_register_page(*args, **kwargs)
@@ -102,7 +105,9 @@ def _set_props(component: Component, path: str, prop_map: dict[str, Any]):
     :return: None
     """
     for prop in prop_map:
-        _PROP_PATH_REGISTRY.setdefault(component, OrderedDict()).setdefault(prop, {})[path] = prop_map[prop]
+        _PROP_PATH_REGISTRY.setdefault(component, OrderedDict()).setdefault(prop, {})[
+            path
+        ] = prop_map[prop]
 
 
 def setup_page_components() -> html.Div:
@@ -145,7 +150,9 @@ def _setup_callbacks():
             id=f"{cid}_wrapper",
         )
         # Add to container.
-        container = _prepare_container(_CONTAINER_REGISTRY.get(component, _COMPONENT_CONTAINER))
+        container = _prepare_container(
+            _CONTAINER_REGISTRY.get(component, _COMPONENT_CONTAINER)
+        )
         container.children.append(wrapper)
         # Setup callback.
         f = f"""function(y, x){{

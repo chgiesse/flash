@@ -1,11 +1,11 @@
 # This file is automatically loaded on build time to generate types.
 
+
 def generate_plotly_figure(*_):
     return "typing.Union[Figure, dict]"
 
 
 def generate_datetime_prop(array=False):
-
     def generator(*_):
         datetime_type = "typing.Union[str, datetime.datetime]"
         if array:

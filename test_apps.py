@@ -17,7 +17,7 @@ from dash import (
     dash_table,
     no_update,
     callback_context,
-    set_props
+    set_props,
 )
 
 import pytest
@@ -25,6 +25,7 @@ import dash
 from dash import Dash, Input, State, dcc, html, Output
 from dash.dash import _ID_LOCATION
 from dash.exceptions import NoLayoutException
+
 
 def get_routing_inputs_app():
     app = Dash(
@@ -65,10 +66,11 @@ def get_routing_inputs_app():
     )
     return app
 
+
 app = get_routing_inputs_app()
 
 
 if __name__ == "__main__":
     app.run(
         debug=True,
-    ) 
+    )

@@ -1,12 +1,12 @@
 import typing as _t
-
 from importlib import metadata as _importlib_metadata
 
-import typing_extensions as _tx
 import flask as _f
+import typing_extensions as _tx
 
-from .exceptions import HookError
-from .resources import ResourceType
+from dash.exceptions import HookError
+from dash.resources import ResourceType
+
 from ._callback import ClientsideFuncType
 
 if _t.TYPE_CHECKING:
@@ -45,7 +45,6 @@ class _Hooks:
             "error": [],
             "callback": [],
             "index": [],
-            "custom_data": [],
         }
         self._js_dist = []
         self._css_dist = []
@@ -72,11 +71,10 @@ class _Hooks:
             return
         hks = self._ns.get(hook, [])
 
-        p = priority or 0
+        p = 0
         if not priority and len(hks):
-            # Take the minimum value and remove 1 to keep the order.
-            priority_min = min(h.priority for h in hks)
-            p = priority_min - 1
+            priority_max = max(h.priority for h in hks)
+            p = priority_max - 1
 
         hks.append(_Hook(func, priority=p, data=data))
         self._ns[hook] = sorted(hks, reverse=True, key=lambda h: h.priority)
@@ -187,28 +185,6 @@ class _Hooks:
                 func,
                 priority=priority,
                 final=final,
-            )
-            return func
-
-        return wrap
-
-    def custom_data(
-        self, namespace: str, priority: _t.Optional[int] = None, final=False
-    ):
-        """
-        Add data to the callback_context.custom_data property under the namespace.
-
-        The hook function takes the current context_value and before the ctx is set
-        and has access to the flask request context.
-        """
-
-        def wrap(func: _t.Callable[[_t.Dict], _t.Any]):
-            self.add_hook(
-                "custom_data",
-                func,
-                priority=priority,
-                final=final,
-                data={"namespace": namespace},
             )
             return func
 

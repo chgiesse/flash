@@ -10,8 +10,8 @@ from dash.resources import ResourceType
 from ._callback import ClientsideFuncType
 
 if _t.TYPE_CHECKING:
-    from .dash import Dash
-    from .development.base_component import Component
+    from dash import Dash
+    from dash.development.base_component import Component
 
     ComponentType = _t.TypeVar("ComponentType", bound=Component)
     LayoutType = _t.Union[ComponentType, _t.List[ComponentType]]

@@ -31,8 +31,9 @@ const coveringSpinner = {
 
 const loadingSelector = (componentPath, targetComponents) => state => {
     let stringPath = JSON.stringify(componentPath);
-    // Remove the last ] for easy match
-    stringPath = stringPath.substring(0, stringPath.length - 1);
+    // Remove the last ] for easy match and add `,` to make sure only children
+    // trigger the loading. See issue: https://github.com/plotly/dash/issues/3276
+    stringPath = stringPath.substring(0, stringPath.length - 1) + ',';
     const loadingChildren = toPairs(state.loading).reduce(
         (acc, [path, load]) => {
             if (path.startsWith(stringPath) && load.length) {
@@ -42,6 +43,9 @@ const loadingSelector = (componentPath, targetComponents) => state => {
                         const target = targetComponents[l.id];
                         if (!target) {
                             return false;
+                        }
+                        if (target === '*') {
+                            return true;
                         }
                         if (Array.isArray(target)) {
                             return includes(l.property, target);

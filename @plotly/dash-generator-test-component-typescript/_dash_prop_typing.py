@@ -1,1 +1,1 @@
-ignore_props = ['ignored_prop']
+ignore_props = ["ignored_prop"]

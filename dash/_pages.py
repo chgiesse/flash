@@ -1,3 +1,7 @@
+from ._get_app import get_app
+from ._callback_context import context_value
+from ._validate import validate_use_pages
+
 import collections
 import importlib
 import os
@@ -10,12 +14,9 @@ from urllib.parse import parse_qs
 
 import quart
 
-from . import _validate
-from ._utils import AttributeDict
-from ._get_paths import get_relative_path
-from ._get_app import get_app
-
-from ._callback_context import context_value
+from dash import _validate
+from dash._utils import AttributeDict
+from dash._get_paths import get_relative_path
 
 
 CONFIG = AttributeDict()
@@ -120,7 +121,7 @@ def _parse_query_string(search):
         return {}
 
     parsed_qs = {}
-    for (k, v) in parse_qs(search).items():
+    for k, v in parse_qs(search).items():
         v = v[0] if len(v) == 1 else v
         parsed_qs[k] = v
     return parsed_qs
@@ -309,7 +310,7 @@ def register_page(
     if context_value.get().get("ignore_register_page"):
         return
 
-    _validate.validate_use_pages(CONFIG)
+    validate_use_pages(CONFIG)
 
     page = dict(
         module=_validate.validate_module_name(module),
@@ -321,18 +322,22 @@ def register_page(
     )
     page.update(
         supplied_title=title,
-        title=title
-        if title is not None
-        else CONFIG.title
-        if CONFIG.title != "Dash"
-        else page["name"],
+        title=(
+            title
+            if title is not None
+            else CONFIG.title
+            if CONFIG.title != "Dash"
+            else page["name"]
+        ),
     )
     page.update(
-        description=description
-        if description
-        else CONFIG.description
-        if CONFIG.description
-        else "",
+        description=(
+            description
+            if description
+            else CONFIG.description
+            if CONFIG.description
+            else ""
+        ),
         order=order,
         supplied_order=order,
         supplied_layout=layout,
