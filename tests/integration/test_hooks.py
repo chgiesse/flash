@@ -22,7 +22,7 @@ def hook_cleanup():
 
 def test_hook001_layout(hook_cleanup, dash_duo):
     @hooks.layout()
-    def on_layout(layout):
+    async def on_layout(layout):
         return [html.Div("Header", id="header")] + layout
 
     app = Dash()
@@ -50,7 +50,7 @@ def test_hook002_setup(hook_cleanup):
 
 def test_hook003_route(hook_cleanup, dash_duo):
     @hooks.route(methods=("POST",))
-    def hook_route():
+    async def hook_route():
         return jsonify({"success": True})
 
     app = Dash()
@@ -64,14 +64,14 @@ def test_hook003_route(hook_cleanup, dash_duo):
 
 def test_hook004_error(hook_cleanup, dash_duo):
     @hooks.error()
-    def on_error(error):
+    async def on_error(error):
         set_props("error", {"children": str(error)})
 
     app = Dash()
     app.layout = [html.Button("start", id="start"), html.Div(id="error")]
 
     @app.callback(Input("start", "n_clicks"), prevent_initial_call=True)
-    def on_click(_):
+    async def on_click(_):
         raise Exception("hook error")
 
     dash_duo.start_server(app)
@@ -85,7 +85,7 @@ def test_hook005_callback(hook_cleanup, dash_duo):
         Input("start", "n_clicks"),
         prevent_initial_call=True,
     )
-    def on_hook_cb(n_clicks):
+    async def on_hook_cb(n_clicks):
         return f"clicked {n_clicks}"
 
     app = Dash()
@@ -101,26 +101,26 @@ def test_hook005_callback(hook_cleanup, dash_duo):
 
 def test_hook006_priority_final(hook_cleanup, dash_duo):
     @hooks.layout(final=True)
-    def hook_final(layout):
+    async def hook_final(layout):
         return html.Div([html.Div("final")] + [layout], id="final-wrapper")
 
     @hooks.layout()
-    def hook1(layout):
+    async def hook1(layout):
         layout.children.append(html.Div("first"))
         return layout
 
     @hooks.layout()
-    def hook2(layout):
+    async def hook2(layout):
         layout.children.append(html.Div("second"))
         return layout
 
     @hooks.layout()
-    def hook3(layout):
+    async def hook3(layout):
         layout.children.append(html.Div("third"))
         return layout
 
     @hooks.layout(priority=6)
-    def hook4(layout):
+    async def hook4(layout):
         layout.children.insert(0, html.Div("Prime"))
         return layout
 
@@ -139,7 +139,7 @@ def test_hook006_priority_final(hook_cleanup, dash_duo):
 
 def test_hook007_hook_index(hook_cleanup, dash_duo):
     @hooks.index()
-    def hook_index(index: str):
+    async def hook_index(index: str):
         body = "<body>"
         ib = index.find(body) + len(body)
         injected = '<div id="hooked">Hooked</div>'

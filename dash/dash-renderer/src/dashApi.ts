@@ -2,6 +2,8 @@ import {path} from 'ramda';
 import {DashContext, useDashContext} from './wrapper/DashContext';
 import {getPath} from './actions/paths';
 import {getStores} from './utils/stores';
+import ExternalWrapper from './wrapper/ExternalWrapper';
+import {stringifyId} from './actions/dependencies';
 
 /**
  * Get the dash props from a component path or id.
@@ -28,7 +30,9 @@ function getLayout(componentPathOrId: string[] | string): any {
 }
 
 (window as any).dash_component_api = {
+    ExternalWrapper,
     DashContext,
     useDashContext,
-    getLayout
+    getLayout,
+    stringifyId
 };

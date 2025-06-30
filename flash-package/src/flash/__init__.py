@@ -23,14 +23,8 @@ from ._callback import callback, clientside_callback
 from ._callback_context import callback_context, set_props
 from ._get_app import get_app
 from ._hooks import hooks
-from ._page_extension import (
-    _register_page,
-    set_page_container_style_display_contents,
-    setup_page_components,
-)
-from ._pages import PAGE_REGISTRY as page_registry
+
+from ._pages import PAGE_REGISTRY as page_registry, register_page
 from .flash import Flash, no_update, page_container
 
 ctx = callback_context
-
-register_page = _register_page

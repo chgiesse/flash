@@ -1,12 +1,12 @@
 import typing as _t
-
 from importlib import metadata as _importlib_metadata
 
-import typing_extensions as _tx
 import flask as _f
+import typing_extensions as _tx
 
-from .exceptions import HookError
-from .resources import ResourceType
+from dash.exceptions import HookError
+from dash.resources import ResourceType
+
 from ._callback import ClientsideFuncType
 
 if _t.TYPE_CHECKING:

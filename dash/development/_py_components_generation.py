@@ -10,19 +10,33 @@ from dash.development.base_component import _explicitize_args
 from dash.exceptions import NonExistentEventException
 from ._all_keywords import python_keywords
 from ._collect_nodes import collect_nodes, filter_base_nodes
-from ._py_prop_typing import get_prop_typing, shapes, custom_imports
+from ._py_prop_typing import (
+    get_custom_ignore,
+    get_custom_props,
+    get_prop_typing,
+    shapes,
+    get_custom_imports,
+)
 from .base_component import Component, ComponentType
 
 import_string = """# AUTO GENERATED FILE - DO NOT EDIT
 
 import typing  # noqa: F401
-import numbers # noqa: F401
 from typing_extensions import TypedDict, NotRequired, Literal # noqa: F401
 from dash.development.base_component import Component, _explicitize_args
-try:
-    from dash.development.base_component import ComponentType # noqa: F401
-except ImportError:
-    ComponentType = typing.TypeVar("ComponentType", bound=Component)
+{custom_imports}
+ComponentType = typing.Union[
+    str,
+    int,
+    float,
+    Component,
+    None,
+    typing.Sequence[typing.Union[str, int, float, Component, None]],
+]
+
+NumberType = typing.Union[
+    typing.SupportsFloat, typing.SupportsInt, typing.SupportsComplex
+]
 
 
 """
@@ -36,6 +50,7 @@ def generate_class_string(
     namespace,
     prop_reorder_exceptions=None,
     max_props=None,
+    custom_typing_module=None,
 ):
     """Dynamically generate class strings to have nicely formatted docstrings,
     keyword arguments, and repr.
@@ -73,7 +88,7 @@ def generate_class_string(
     _namespace = '{namespace}'
     _type = '{typename}'
 {shapes}
-    @_explicitize_args
+
     def __init__(
         self,
         {default_argtext}
@@ -90,6 +105,8 @@ def generate_class_string(
         args = {args}
         {required_validation}
         super({typename}, self).__init__({argtext})
+
+setattr({typename}, "__init__", _explicitize_args({typename}.__init__))
 '''
 
     filtered_props = (
@@ -100,11 +117,13 @@ def generate_class_string(
     )
     wildcard_prefixes = repr(parse_wildcards(props))
     list_of_valid_keys = repr(list(map(str, filtered_props.keys())))
+    custom_ignore = get_custom_ignore(custom_typing_module)
     docstring = create_docstring(
         component_name=typename,
         props=filtered_props,
         description=description,
         prop_reorder_exceptions=prop_reorder_exceptions,
+        ignored_props=custom_ignore,
     ).replace("\r\n", "\n")
     required_args = required_props(filtered_props)
     is_children_required = "children" in required_args
@@ -162,7 +181,15 @@ def generate_class_string(
 
         type_name = type_info.get("name")
 
-        typed = get_prop_typing(type_name, typename, prop_key, type_info, namespace)
+        custom_props = get_custom_props(custom_typing_module)
+        typed = get_prop_typing(
+            type_name,
+            typename,
+            prop_key,
+            type_info,
+            custom_props=custom_props,
+            custom_ignore=custom_ignore,
+        )
 
         arg_value = f"{prop_key}: typing.Optional[{typed}] = None"
 
@@ -208,6 +235,7 @@ def generate_class_file(
     namespace,
     prop_reorder_exceptions=None,
     max_props=None,
+    custom_typing_module="dash_prop_typing",
 ):
     """Generate a Python class file (.py) given a class string.
     Parameters
@@ -220,16 +248,26 @@ def generate_class_file(
     Returns
     -------
     """
-    imports = import_string
 
     class_string = generate_class_string(
-        typename, props, description, namespace, prop_reorder_exceptions, max_props
+        typename,
+        props,
+        description,
+        namespace,
+        prop_reorder_exceptions,
+        max_props,
+        custom_typing_module,
     )
 
-    custom_imp = custom_imports[namespace][typename]
+    custom_imp = get_custom_imports(custom_typing_module)
+    custom_imp = custom_imp.get(typename) or custom_imp.get("*")
+
     if custom_imp:
-        imports += "\n".join(custom_imp)
-        imports += "\n\n"
+        imports = import_string.format(
+            custom_imports="\n" + "\n".join(custom_imp) + "\n\n"
+        )
+    else:
+        imports = import_string.format(custom_imports="")
 
     file_name = f"{typename:s}.py"
 
@@ -294,6 +332,9 @@ def generate_class(
         "TypedDict": TypedDict,
         "NotRequired": NotRequired,
         "Literal": Literal,
+        "NumberType": typing.Union[
+            typing.SupportsFloat, typing.SupportsComplex, typing.SupportsInt
+        ],
     }
     # pylint: disable=exec-used
     exec(string, scope)
@@ -314,7 +355,13 @@ def required_props(props):
     return [prop_name for prop_name, prop in list(props.items()) if prop["required"]]
 
 
-def create_docstring(component_name, props, description, prop_reorder_exceptions=None):
+def create_docstring(
+    component_name,
+    props,
+    description,
+    prop_reorder_exceptions=None,
+    ignored_props=tuple(),
+):
     """Create the Dash component docstring.
     Parameters
     ----------
@@ -351,7 +398,7 @@ def create_docstring(component_name, props, description, prop_reorder_exceptions
             indent_num=0,
             is_flow_type="flowType" in prop and "type" not in prop,
         )
-        for p, prop in filter_props(props).items()
+        for p, prop in filter_props(props, ignored_props).items()
     )
 
     return (
@@ -416,7 +463,7 @@ def reorder_props(props):
     return OrderedDict(props1 + props2 + sorted(list(props.items())))
 
 
-def filter_props(props):
+def filter_props(props, ignored_props=tuple()):
     """Filter props from the Component arguments to exclude:
         - Those without a "type" or a "flowType" field
         - Those with arg.type.name in {'func', 'symbol', 'instanceOf'}
@@ -461,7 +508,7 @@ def filter_props(props):
     filtered_props = copy.deepcopy(props)
 
     for arg_name, arg in list(filtered_props.items()):
-        if "type" not in arg and "flowType" not in arg:
+        if arg_name in ignored_props or ("type" not in arg and "flowType" not in arg):
             filtered_props.pop(arg_name)
             continue
 
@@ -737,7 +784,7 @@ def js_to_py_type(type_object, is_flow_type=False, indent_num=0):
         return ""
     if js_type_name in js_to_py_types:
         if js_type_name == "signature":  # This is a Flow object w/ signature
-            return js_to_py_types[js_type_name](indent_num)
+            return js_to_py_types[js_type_name](indent_num)  # type: ignore[reportCallIssue]
         # All other types
-        return js_to_py_types[js_type_name]()
+        return js_to_py_types[js_type_name]()  # type: ignore[reportCallIssue]
     return ""

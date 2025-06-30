@@ -1,10 +1,9 @@
-quart>=0.19.9,<1.0.0
-Werkzeug<3.1
+Flask>=1.0.4,<3.2
+Werkzeug<3.2
 plotly>=5.0.0
 importlib-metadata
 typing_extensions>=4.1.1
 requests
 retrying
 nest-asyncio
-setuptools
-stringcase>=1.2.0
+setuptools<81

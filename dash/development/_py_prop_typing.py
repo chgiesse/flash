@@ -2,8 +2,9 @@ import collections
 import json
 import string
 import textwrap
+import importlib
 
-import stringcase
+from .._utils import pascal_case
 
 
 shapes = {}
@@ -13,6 +14,28 @@ shape_template = """{name} = TypedDict(
 )
 """
 custom_imports = collections.defaultdict(lambda: collections.defaultdict(list))
+
+
+def _get_custom(module_name, prop, default):
+    if not module_name:
+        return default
+    try:
+        module = importlib.import_module(module_name)
+        return getattr(module, prop, default)
+    except ImportError:
+        return default
+
+
+def get_custom_imports(module_name):
+    return _get_custom(module_name, "custom_imports", {})
+
+
+def get_custom_props(module_name):
+    return _get_custom(module_name, "custom_props", {})
+
+
+def get_custom_ignore(module_name):
+    return _get_custom(module_name, "ignore_props", ["style"])
 
 
 def _clean_key(key):
@@ -31,7 +54,7 @@ def generate_any(*_):
 
 def generate_shape(type_info, component_name: str, prop_name: str):
     props = []
-    name = stringcase.pascalcase(prop_name)
+    name = pascal_case(prop_name)
 
     for prop_key, prop_type in type_info["value"].items():
         typed = get_prop_typing(
@@ -117,31 +140,39 @@ def generate_enum(type_info, *_):
     return f"Literal[{', '.join(values)}]"
 
 
+def generate_literal(type_info, *_):
+    return f"Literal[{json.dumps(type_info['value'])}]"
+
+
+def _get_custom_prop(custom_props, component_name, prop_name):
+    customs = custom_props.get(component_name) or custom_props.get("*", {})
+    return customs.get(prop_name)
+
+
 def get_prop_typing(
-    type_name: str, component_name: str, prop_name: str, type_info, namespace=None
+    type_name: str,
+    component_name: str,
+    prop_name: str,
+    type_info,
+    custom_props=None,
+    custom_ignore=None,
 ):
-    if namespace:
-        # Only check the namespace once
-        special = (
-            special_cases.get(namespace, {}).get(component_name, {}).get(prop_name)
-        )
+    if prop_name == "id":
+        # Id is always the same either a string or a dict for pattern matching.
+        return "typing.Union[str, dict]"
+
+    if custom_props:
+        special = _get_custom_prop(custom_props, component_name, prop_name)
         if special:
             return special(type_info, component_name, prop_name)
+
+    if custom_ignore and prop_name in custom_ignore:
+        return "typing.Any"
 
     prop_type = PROP_TYPING.get(type_name, generate_any)(
         type_info, component_name, prop_name
     )
     return prop_type
-
-
-def generate_plotly_figure(*_):
-    custom_imports["dash_core_components"]["Graph"].append(
-        "from plotly.graph_objects import Figure"
-    )
-    return "typing.Union[Figure, dict]"
-
-
-special_cases = {"dash_core_components": {"Graph": {"figure": generate_plotly_figure}}}
 
 
 PROP_TYPING = {
@@ -152,18 +183,15 @@ PROP_TYPING = {
     "exact": generate_shape,
     "string": generate_type("str"),
     "bool": generate_type("bool"),
-    "number": generate_type("typing.Union[int, float, numbers.Number]"),
-    "node": generate_type(
-        "typing.Union[str, int, float, ComponentType,"
-        " typing.Sequence[typing.Union"
-        "[str, int, float, ComponentType]]]"
-    ),
+    "number": generate_type("NumberType"),
+    "node": generate_type("ComponentType"),
     "func": generate_any,
-    "element": generate_type("ComponentType"),
+    "element": generate_type("Component"),
     "union": generate_union,
     "any": generate_any,
     "custom": generate_any,
     "enum": generate_enum,
     "objectOf": generate_object_of,
     "tuple": generate_tuple,
+    "literal": generate_literal,
 }

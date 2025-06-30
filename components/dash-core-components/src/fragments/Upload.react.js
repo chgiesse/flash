@@ -1,7 +1,7 @@
 import React, {Component} from 'react';
 import Dropzone from 'react-dropzone';
 
-import {propTypes, defaultProps} from '../components/Upload.react';
+import {propTypes} from '../components/Upload.react';
 import LoadingElement from '../utils/LoadingElement';
 
 export default class Upload extends Component {
@@ -64,6 +64,11 @@ export default class Upload extends Component {
             style_reject,
             style_disabled,
         } = this.props;
+
+        const activeStyle = className_active ? undefined : style_active;
+        const disabledStyle = className_disabled ? undefined : style_disabled;
+        const rejectStyle = className_reject ? undefined : style_reject;
+
         return (
             <LoadingElement id={id}>
                 <Dropzone
@@ -79,9 +84,9 @@ export default class Upload extends Component {
                     rejectClassName={className_reject}
                     disabledClassName={className_disabled}
                     style={style}
-                    activeStyle={style_active}
-                    rejectStyle={style_reject}
-                    disabledStyle={style_disabled}
+                    activeStyle={activeStyle}
+                    rejectStyle={rejectStyle}
+                    disabledStyle={disabledStyle}
                 >
                     {children}
                 </Dropzone>
@@ -91,4 +96,3 @@ export default class Upload extends Component {
 }
 
 Upload.propTypes = propTypes;
-Upload.defaultProps = defaultProps;

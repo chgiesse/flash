@@ -6,7 +6,7 @@ import 'react-virtualized-select/styles.css';
 import '../components/css/react-virtualized@9.9.0.css';
 import '../components/css/Dropdown.css';
 
-import {propTypes, defaultProps} from '../components/Dropdown.react';
+import {propTypes} from '../components/Dropdown.react';
 import {sanitizeOptions} from '../utils/optionTypes';
 import isEqual from 'react-fast-compare';
 
@@ -33,6 +33,7 @@ const RDProps = [
     'maxHeight',
     'style',
     'className',
+    'closeOnSelect',
 ];
 
 const Dropdown = props => {
@@ -45,6 +46,7 @@ const Dropdown = props => {
         search_value,
         style,
         value,
+        searchable,
     } = props;
     const [optionsCheck, setOptionsCheck] = useState(null);
     const persistentOptions = useRef(null);
@@ -157,7 +159,7 @@ const Dropdown = props => {
                 options={sanitizedOptions}
                 value={value}
                 onChange={onChange}
-                onInputChange={onInputChange}
+                onInputChange={searchable ? onInputChange : undefined}
                 backspaceRemoves={clearable}
                 deleteRemoves={clearable}
                 inputProps={{autoComplete: 'off'}}
@@ -168,6 +170,5 @@ const Dropdown = props => {
 };
 
 Dropdown.propTypes = propTypes;
-Dropdown.defaultProps = defaultProps;
 
 export default Dropdown;

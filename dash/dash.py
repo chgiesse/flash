@@ -1,48 +1,50 @@
 import asyncio
-import functools
-import os
-import sys
+import base64
 import collections
+import functools
+import hashlib
 import importlib
-import warnings
-from contextvars import copy_context
-from importlib.machinery import ModuleSpec
+import inspect
+import logging
+import mimetypes
+import os
 import pkgutil
 import re
-import logging
+import sys
 import time
-import mimetypes
-import hashlib
-import base64
 import traceback
-import inspect
+import warnings
+from contextvars import copy_context
+from importlib import metadata
+from importlib.machinery import ModuleSpec
+from importlib.util import find_spec
+from typing import Any, Callable, Dict, Optional, Union, Sequence
 from urllib.parse import urlparse
-from typing import Any, Callable, Dict, Optional, Union, List
 
 import quart
-
 from importlib_metadata import version as _get_distribution_version
 
-from dash import dcc
-from dash import html
-from dash import dash_table
-
-from .fingerprint import build_fingerprint, check_fingerprint
-from .resources import Scripts, Css
-from .dependencies import (
-    Input,
-    Output,
-    State,
-)
-from .development.base_component import ComponentRegistry
-from .exceptions import (
-    PreventUpdate,
-    InvalidResourceError,
-    ProxyError,
-    DuplicateCallback,
-)
-from .version import __version__
+from dash import _get_paths
+from dash._grouping import map_grouping, grouping_len, update_args_group
+from dash._jupyter import jupyter_dash
+from dash._obsolete import ObsoleteChecker
+from dash.types import RendererHooks
+from . import _callback
+from . import _dash_renderer
+from . import _get_app
+from . import _pages
+from . import _validate
+from . import _watch
+from . import dash_table
+from . import dcc
+from . import html
 from ._configs import get_combined_config, pathname_configs, pages_folder_config
+from ._pages import (
+    _parse_query_string,
+    _page_meta_tags,
+    _path_to_page,
+    _import_layouts_from_pages,
+)
 from ._utils import (
     AttributeDict,
     format_tag,
@@ -59,24 +61,30 @@ from ._utils import (
     parse_version,
     get_caller_name,
 )
-from . import _callback
-from . import _get_paths
-from . import _dash_renderer
-from . import _validate
-from . import _watch
-from . import _get_app
-
-from ._grouping import map_grouping, grouping_len, update_args_group
-
-from . import _pages
-from ._pages import (
-    _parse_query_string,
-    _page_meta_tags,
-    _path_to_page,
-    _import_layouts_from_pages,
+from .dependencies import (
+    Input,
+    Output,
+    State,
 )
-from ._jupyter import jupyter_dash
-from .types import RendererHooks
+from .development.base_component import ComponentRegistry
+from .exceptions import (
+    PreventUpdate,
+    InvalidResourceError,
+    ProxyError,
+    DuplicateCallback,
+)
+from .fingerprint import build_fingerprint, check_fingerprint
+from .resources import Scripts, Css
+from .version import __version__
+
+# If dash_design_kit is installed, check for version
+ddk_version = None
+if find_spec("dash_design_kit"):
+    ddk_version = metadata.version("dash_design_kit")
+
+plotly_version = None
+if find_spec("plotly"):
+    plotly_version = metadata.version("plotly")
 
 # Add explicit mapping for map files
 mimetypes.add_type("application/json", ".map", True)
@@ -125,6 +133,8 @@ _ID_LOCATION = "_pages_location"
 _ID_STORE = "_pages_store"
 _ID_DUMMY = "_pages_dummy"
 
+DASH_VERSION_URL = "https://dash-version.plotly.com:8080/current_version"
+
 # Handles the case in a newly cloned environment where the components are not yet generated.
 try:
     page_container = html.Div(
@@ -148,7 +158,7 @@ def _get_traceback(secret, error: Exception):
         tbtools = None
 
     def _get_skip(error):
-        from dash._utils import (  # pylint: disable=import-outside-toplevel
+        from ._utils import (  # pylint: disable=import-outside-toplevel
             _invoke_callback,
         )
 
@@ -163,7 +173,7 @@ def _get_traceback(secret, error: Exception):
         return skip
 
     def _do_skip(error):
-        from dash._utils import (  # pylint: disable=import-outside-toplevel
+        from ._utils import (  # pylint: disable=import-outside-toplevel
             _invoke_callback,
         )
 
@@ -203,7 +213,7 @@ def exception_handler(context):
 
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=too-many-arguments, too-many-locals
-class Dash:
+class Dash(ObsoleteChecker):
     """Dash is a framework for building analytical web applications.
     No JavaScript required.
 
@@ -406,14 +416,14 @@ class Dash:
         routes_pathname_prefix: Optional[str] = None,
         serve_locally: bool = True,
         compress: Optional[bool] = None,
-        meta_tags: Optional[List[Dict[str, Any]]] = None,
+        meta_tags: Optional[Sequence[Dict[str, Any]]] = None,
         index_string: str = _default_index,
-        external_scripts: Optional[List[Union[str, Dict[str, Any]]]] = None,
-        external_stylesheets: Optional[List[Union[str, Dict[str, Any]]]] = None,
+        external_scripts: Optional[Sequence[Union[str, Dict[str, Any]]]] = None,
+        external_stylesheets: Optional[Sequence[Union[str, Dict[str, Any]]]] = None,
         suppress_callback_exceptions: Optional[bool] = None,
         prevent_initial_callbacks: bool = False,
         show_undo_redo: bool = False,
-        extra_hot_reload_paths: Optional[List[str]] = None,
+        extra_hot_reload_paths: Optional[Sequence[str]] = None,
         plugins: Optional[list] = None,
         title: str = "Dash",
         update_title: str = "Updating...",
@@ -588,7 +598,7 @@ class Dash:
 
     def _setup_hooks(self):
         # pylint: disable=import-outside-toplevel,protected-access
-        from ._hooks import HooksManager
+        from dash._hooks import HooksManager
 
         self._hooks = HooksManager
         self._hooks.register_setuptools()
@@ -747,15 +757,6 @@ class Dash:
     def layout(self):
         return self._layout
 
-    def _layout_value(self):
-        layout = self._layout() if self._layout_is_function else self._layout
-
-        # Add any extra components
-        if self._extra_components:
-            layout = html.Div(children=[layout] + self._extra_components)
-
-        return layout
-
     @layout.setter
     def layout(self, value):
         _validate.validate_layout_type(value)
@@ -769,10 +770,18 @@ class Dash:
             and not self.validation_layout
             and not self.config.suppress_callback_exceptions
         ):
-
             layout_value = self._layout_value()
             _validate.validate_layout(value, layout_value)
             self.validation_layout = layout_value
+
+    def _layout_value(self):
+        layout = self._layout() if self._layout_is_function else self._layout
+
+        # Add any extra components
+        if self._extra_components:
+            layout = html.Div(children=[layout] + self._extra_components)
+
+        return layout
 
     @property
     def index_string(self):
@@ -788,7 +797,7 @@ class Dash:
         layout = self._layout_value()
 
         for hook in self._hooks.get_hooks("layout"):
-            layout = hook(layout)
+            layout = await hook(layout)
 
         # TODO - Set browser cache limit - pass hash into frontend
         return quart.Response(
@@ -808,6 +817,11 @@ class Dash:
             "update_title": self.config.update_title,
             "children_props": ComponentRegistry.children_props,
             "serve_locally": self.config.serve_locally,
+            "dash_version": __version__,
+            "python_version": sys.version,
+            "dash_version_url": DASH_VERSION_URL,
+            "ddk_version": ddk_version,
+            "plotly_version": plotly_version,
         }
         if not self.config.serve_locally:
             config["plotlyjs_url"] = self._plotlyjs_url
@@ -1114,7 +1128,7 @@ class Dash:
         )
 
         for hook in self._hooks.get_hooks("index"):
-            index = hook(index)
+            index = await hook(index)
 
         checks = (
             _re_index_entry_id,
@@ -1287,37 +1301,30 @@ class Dash:
         )
 
     # pylint: disable=R0915
-    async def dispatch(self):
-
-        body = await quart.request.get_json()
-
+    def _initialize_context(self, body):
+        """Initialize the global context for the request."""
         g = AttributeDict({})
-
-        g.inputs_list = inputs = body.get(  # pylint: disable=assigning-non-slot
-            "inputs", []
-        )
-        g.states_list = state = body.get(  # pylint: disable=assigning-non-slot
-            "state", []
-        )
-        output = body["output"]
-        outputs_list = body.get("outputs")
-        g.outputs_list = outputs_list  # pylint: disable=assigning-non-slot
-
-        g.input_values = (  # pylint: disable=assigning-non-slot
-            input_values
-        ) = inputs_to_dict(inputs)
-        g.state_values = inputs_to_dict(state)  # pylint: disable=assigning-non-slot
-        changed_props = body.get("changedPropIds", [])
-        g.triggered_inputs = [  # pylint: disable=assigning-non-slot
-            {"prop_id": x, "value": input_values.get(x)} for x in changed_props
+        g.inputs_list = body.get("inputs", [])
+        g.states_list = body.get("state", [])
+        g.outputs_list = body.get("outputs", [])
+        g.input_values = inputs_to_dict(g.inputs_list)
+        g.state_values = inputs_to_dict(g.states_list)
+        g.triggered_inputs = [
+            {"prop_id": x, "value": g.input_values.get(x)}
+            for x in body.get("changedPropIds", [])
         ]
+        g.dash_response = quart.Response(mimetype="application/json")
+        g.cookies = dict(**quart.request.cookies)
+        g.headers = dict(**quart.request.headers)
+        g.path = quart.request.full_path
+        g.remote = quart.request.remote_addr
+        g.origin = quart.request.origin
+        g.updated_props = {}
+        return g
 
-        response = (
-            g.dash_response  # pylint: disable=assigning-non-slot
-        ) = quart.Response(mimetype="application/json")
-
-        args = inputs_to_vals(inputs + state)
-
+    def _prepare_callback(self, g, body):
+        """Prepare callback-related data."""
+        output = body["output"]
         try:
             cb = self.callback_map[output]
             func = cb["callback"]
@@ -1328,79 +1335,94 @@ class Dash:
 
             # Add args_grouping
             inputs_state_indices = cb["inputs_state_indices"]
-            inputs_state = inputs + state
-            inputs_state = convert_to_AttributeDict(inputs_state)
+            inputs_state = convert_to_AttributeDict(g.inputs_list + g.states_list)
 
             if cb.get("no_output"):
-                outputs_list = []
-            elif not outputs_list:
-                # FIXME Old renderer support?
+                g.outputs_list = []
+            elif not g.outputs_list:
+                # Legacy support for older renderers
                 split_callback_id(output)
 
-            # update args_grouping attributes
+            # Update args_grouping attributes
             for s in inputs_state:
                 # check for pattern matching: list of inputs or state
                 if isinstance(s, list):
                     for pattern_match_g in s:
-                        update_args_group(pattern_match_g, changed_props)
-                update_args_group(s, changed_props)
+                        update_args_group(
+                            pattern_match_g, body.get("changedPropIds", [])
+                        )
+                update_args_group(s, body.get("changedPropIds", []))
 
-            args_grouping = map_grouping(
-                lambda ind: inputs_state[ind], inputs_state_indices
+            g.args_grouping, g.using_args_grouping = self._prepare_grouping(
+                inputs_state, inputs_state_indices
             )
-
-            g.args_grouping = args_grouping  # pylint: disable=assigning-non-slot
-            g.using_args_grouping = (  # pylint: disable=assigning-non-slot
-                not isinstance(inputs_state_indices, int)
-                and (
-                    inputs_state_indices
-                    != list(range(grouping_len(inputs_state_indices)))
-                )
+            g.outputs_grouping, g.using_outputs_grouping = self._prepare_grouping(
+                g.outputs_list, cb.get("outputs_indices", [])
             )
+        except KeyError as e:
+            raise KeyError(f"Callback function not found for output '{output}'.") from e
+        return func
 
-            # Add outputs_grouping
-            outputs_indices = cb["outputs_indices"]
-            if not isinstance(outputs_list, list):
-                flat_outputs = [outputs_list]
-            else:
-                flat_outputs = outputs_list
+    def _prepare_grouping(self, data_list, indices):
+        """Prepare grouping logic for inputs or outputs."""
+        if not isinstance(data_list, list):
+            flat_data = [data_list]
+        else:
+            flat_data = data_list
 
-            if len(flat_outputs) > 0:
-                outputs_grouping = map_grouping(
-                    lambda ind: flat_outputs[ind], outputs_indices
-                )
-                g.outputs_grouping = (
-                    outputs_grouping  # pylint: disable=assigning-non-slot
-                )
-                g.using_outputs_grouping = (  # pylint: disable=assigning-non-slot
-                    not isinstance(outputs_indices, int)
-                    and outputs_indices != list(range(grouping_len(outputs_indices)))
-                )
-            else:
-                g.outputs_grouping = []
-                g.using_outputs_grouping = []
-            g.updated_props = {}
+        if len(flat_data) > 0:
+            grouping = map_grouping(lambda ind: flat_data[ind], indices)
+            using_grouping = not isinstance(indices, int) and indices != list(
+                range(grouping_len(indices))
+            )
+        else:
+            grouping, using_grouping = [], False
 
-        except KeyError as missing_callback_function:
-            msg = f"Callback function not found for output '{output}', perhaps you forgot to prepend the '@'?"
-            raise KeyError(msg) from missing_callback_function
+        return grouping, using_grouping
+
+    def _execute_callback(self, func, args, outputs_list, g):
+        """Execute the callback with the prepared arguments."""
+        g.cookies = dict(**quart.request.cookies)
+        g.headers = dict(**quart.request.headers)
+        g.path = quart.request.full_path
+        g.remote = quart.request.remote_addr
+        g.origin = quart.request.origin
+        g.custom_data = AttributeDict({})
+
+        for hook in self._hooks.get_hooks("custom_data"):
+            g.custom_data[hook.data["namespace"]] = hook(g)
+
+        # noinspection PyArgumentList
+        partial_func = functools.partial(
+            func,
+            *args,
+            outputs_list=outputs_list,
+            background_callback_manager=g.background_callback_manager,
+            callback_context=g,
+            app=self,
+            app_on_error=self._on_error,
+        )
+        return partial_func
+
+    # pylint: disable=R0915
+    async def async_dispatch(self):
+        body = await quart.request.get_json()
+        g = self._initialize_context(body)
+        func = self._prepare_callback(g, body)
+        args = inputs_to_vals(g.inputs_list + g.states_list)
 
         ctx = copy_context()
-        # noinspection PyArgumentList
-        response.set_data(
-            await ctx.run(
-                functools.partial(
-                    func,
-                    *args,
-                    outputs_list=outputs_list,
-                    background_callback_manager=self._background_manager,
-                    callback_context=g,
-                    app=self,
-                    app_on_error=self._on_error,
-                )
-            )
-        )
-        return response
+        partial_func = self._execute_callback(func, args, g.outputs_list, g)
+        if asyncio.iscoroutine(func):
+            response_data = await ctx.run(partial_func)
+        else:
+            response_data = ctx.run(partial_func)
+
+        if asyncio.iscoroutine(response_data):
+            response_data = await response_data
+
+        g.dash_response.set_data(response_data)
+        return g.dash_response
 
     async def _setup_server(self):
         if self._got_first_request["setup_server"]:
@@ -1741,6 +1763,12 @@ class Dash:
                 get_combined_config(attr, kwargs.get(attr, None), default=default)
             )
 
+        dev_tools["disable_version_check"] = get_combined_config(
+            "disable_version_check",
+            kwargs.get("disable_version_check", None),
+            default=False,
+        )
+
         return dev_tools
 
     def enable_dev_tools(
@@ -1755,6 +1783,7 @@ class Dash:
         dev_tools_hot_reload_watch_interval=None,
         dev_tools_hot_reload_max_retry=None,
         dev_tools_silence_routes_logging=None,
+        dev_tools_disable_version_check=None,
         dev_tools_prune_errors=None,
     ):
         """Activate the dev tools, called by `run`. If your application
@@ -1775,6 +1804,7 @@ class Dash:
             - DASH_HOT_RELOAD_WATCH_INTERVAL
             - DASH_HOT_RELOAD_MAX_RETRY
             - DASH_SILENCE_ROUTES_LOGGING
+            - DASH_DISABLE_VERSION_CHECK
             - DASH_PRUNE_ERRORS
 
         :param debug: Enable/disable all the dev tools unless overridden by the
@@ -1820,6 +1850,11 @@ class Dash:
             env: ``DASH_SILENCE_ROUTES_LOGGING``
         :type dev_tools_silence_routes_logging: bool
 
+        :param dev_tools_disable_version_check: Silence the upgrade
+            notification to prevent making requests to the Dash server.
+            env: ``DASH_DISABLE_VERSION_CHECK``
+        :type dev_tools_disable_version_check: bool
+
         :param dev_tools_prune_errors: Reduce tracebacks to just user code,
             stripping out Quart and Dash pieces. Only available with debugging.
             `True` by default, set to `False` to see the complete traceback.
@@ -1841,6 +1876,7 @@ class Dash:
             hot_reload_watch_interval=dev_tools_hot_reload_watch_interval,
             hot_reload_max_retry=dev_tools_hot_reload_max_retry,
             silence_routes_logging=dev_tools_silence_routes_logging,
+            disable_version_check=dev_tools_disable_version_check,
             prune_errors=dev_tools_prune_errors,
         )
 
@@ -2027,6 +2063,7 @@ class Dash:
         dev_tools_hot_reload_watch_interval: Optional[int] = None,
         dev_tools_hot_reload_max_retry: Optional[int] = None,
         dev_tools_silence_routes_logging: Optional[bool] = None,
+        dev_tools_disable_version_check: Optional[bool] = None,
         dev_tools_prune_errors: Optional[bool] = None,
         **quart_run_options,
     ):
@@ -2099,6 +2136,11 @@ class Dash:
             env: ``DASH_SILENCE_ROUTES_LOGGING``
         :type dev_tools_silence_routes_logging: bool
 
+        :param dev_tools_disable_version_check: Silence the upgrade
+            notification to prevent making requests to the Dash server.
+            env: ``DASH_DISABLE_VERSION_CHECK``
+        :type dev_tools_disable_version_check: bool
+
         :param dev_tools_prune_errors: Reduce tracebacks to just user code,
             stripping out Quart and Dash pieces. Only available with debugging.
             `True` by default, set to `False` to see the complete traceback.
@@ -2145,6 +2187,7 @@ class Dash:
             dev_tools_hot_reload_watch_interval,
             dev_tools_hot_reload_max_retry,
             dev_tools_silence_routes_logging,
+            dev_tools_disable_version_check,
             dev_tools_prune_errors,
         )
 

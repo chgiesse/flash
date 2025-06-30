@@ -1,7 +1,7 @@
 import typing as _t
 from importlib import metadata as _importlib_metadata
 
-import flask as _f
+import quart as _f
 import typing_extensions as _tx
 
 from dash.exceptions import HookError
@@ -10,8 +10,8 @@ from dash.resources import ResourceType
 from ._callback import ClientsideFuncType
 
 if _t.TYPE_CHECKING:
-    from .dash import Dash
-    from .development.base_component import Component
+    from dash import Dash
+    from dash.development.base_component import Component
 
     ComponentType = _t.TypeVar("ComponentType", bound=Component)
     LayoutType = _t.Union[ComponentType, _t.List[ComponentType]]

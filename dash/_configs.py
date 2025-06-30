@@ -29,6 +29,7 @@ def load_dash_env_vars():
                 "DASH_HOT_RELOAD_WATCH_INTERVAL",
                 "DASH_HOT_RELOAD_MAX_RETRY",
                 "DASH_SILENCE_ROUTES_LOGGING",
+                "DASH_DISABLE_VERSION_CHECK",
                 "DASH_PRUNE_ERRORS",
                 "DASH_COMPRESS",
                 "HOST",
@@ -64,7 +65,7 @@ def pathname_configs(
 
     Note that `requests_pathname_prefix` is the prefix for the AJAX calls that
     originate from the client (the web browser) and `routes_pathname_prefix` is
-    the prefix for the API routes on the backend (this quart server).
+    the prefix for the API routes on the backend (this flask server).
     `url_base_pathname` will set `requests_pathname_prefix` and
     `routes_pathname_prefix` to the same value.
     If you need these to be different values then you should set

@@ -17,23 +17,24 @@ _ID_CONTENT = "_component_content"
 _COMPONENT_PATH_REGISTRY: dict[Component, list[str]] = OrderedDict()
 _PROP_PATH_REGISTRY: dict[Component, dict[str, list[str]]] = OrderedDict()
 _CONTAINER_REGISTRY: dict[Component, Component] = {}
-_COMPONENT_CONTAINER = html.Div(id=_ID_CONTENT, disable_n_clicks=True, style=dict(display="contents"))
+_COMPONENT_CONTAINER = html.Div(
+    id=_ID_CONTENT, disable_n_clicks=True, style=dict(display="contents")
+)
 
 # region Monkey patch page registration function
+
 
 def _register_page(*args, page_components=None, page_properties=None, **kwargs):
     base_register_page(*args, **kwargs)
     # Resolve page.
     module = kwargs["module"] if "module" in kwargs else args[0]
     page = PAGE_REGISTRY[module]
-    print("PATH: ", page["path"])
 
     # Register callbacks for page props.
     if page_properties is not None:
         for component in page_properties:
             _set_props(component, page["path"], page_properties[component])
     # Resolve any page components.
-    print("PAGE COPMONENTS: ", page_components, flush=True)
     if page_components is None:
         return
     for component in page_components:
@@ -104,7 +105,9 @@ def _set_props(component: Component, path: str, prop_map: dict[str, Any]):
     :return: None
     """
     for prop in prop_map:
-        _PROP_PATH_REGISTRY.setdefault(component, OrderedDict()).setdefault(prop, {})[path] = prop_map[prop]
+        _PROP_PATH_REGISTRY.setdefault(component, OrderedDict()).setdefault(prop, {})[
+            path
+        ] = prop_map[prop]
 
 
 def setup_page_components() -> html.Div:
@@ -133,14 +136,11 @@ def _prepare_container(container: Optional[Component] = None):
 
 
 def _setup_callbacks():
-    print("HALLO IN CALLBACK", flush=True)
     store = flash.flash._ID_STORE
     location = flash.flash._ID_LOCATION
     # Setup callbacks for page components.
     components = list(_COMPONENT_PATH_REGISTRY.keys())
-    print('Components: ', components)
     for component in components:
-        print(component, flush=True)
         # Wrap in div container, so we can hide it.
         cid = component._set_random_id()
         wrapper = html.Div(
@@ -150,7 +150,9 @@ def _setup_callbacks():
             id=f"{cid}_wrapper",
         )
         # Add to container.
-        container = _prepare_container(_CONTAINER_REGISTRY.get(component, _COMPONENT_CONTAINER))
+        container = _prepare_container(
+            _CONTAINER_REGISTRY.get(component, _COMPONENT_CONTAINER)
+        )
         container.children.append(wrapper)
         # Setup callback.
         f = f"""function(y, x){{
