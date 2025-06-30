@@ -1,22 +1,21 @@
-from ._get_app import get_app
-from ._callback_context import context_value
-from ._validate import validate_use_pages
-
 import collections
+from fnmatch import fnmatch
 import importlib
 import os
+from os.path import isfile, join
+from pathlib import Path
 import re
 import sys
-from fnmatch import fnmatch
-from pathlib import Path
-from os.path import isfile, join
 from urllib.parse import parse_qs
 
 import quart
 
 from dash import _validate
-from dash._utils import AttributeDict
+from dash._callback_context import context_value
+from dash._get_app import get_app
 from dash._get_paths import get_relative_path
+from dash._utils import AttributeDict
+from dash._validate import validate_use_pages
 
 
 CONFIG = AttributeDict()

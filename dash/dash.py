@@ -1,50 +1,50 @@
 import asyncio
-import functools
-import os
-import sys
+import base64
 import collections
+import functools
+import hashlib
 import importlib
-import warnings
-from contextvars import copy_context
-from importlib.machinery import ModuleSpec
-from importlib.util import find_spec
-from importlib import metadata
+import inspect
+import logging
+import mimetypes
+import os
 import pkgutil
 import re
-import logging
+import sys
 import time
-import mimetypes
-import hashlib
-import base64
 import traceback
-import inspect
-from urllib.parse import urlparse
+import warnings
+from contextvars import copy_context
+from importlib import metadata
+from importlib.machinery import ModuleSpec
+from importlib.util import find_spec
 from typing import Any, Callable, Dict, Optional, Union, Sequence
+from urllib.parse import urlparse
 
 import quart
-
 from importlib_metadata import version as _get_distribution_version
 
+from dash import _get_paths
+from dash._grouping import map_grouping, grouping_len, update_args_group
+from dash._jupyter import jupyter_dash
+from dash._obsolete import ObsoleteChecker
+from dash.types import RendererHooks
+from . import _callback
+from . import _dash_renderer
+from . import _get_app
+from . import _pages
+from . import _validate
+from . import _watch
+from . import dash_table
 from . import dcc
 from . import html
-from . import dash_table
-
-from .fingerprint import build_fingerprint, check_fingerprint
-from .resources import Scripts, Css
-from .dependencies import (
-    Input,
-    Output,
-    State,
-)
-from .development.base_component import ComponentRegistry
-from .exceptions import (
-    PreventUpdate,
-    InvalidResourceError,
-    ProxyError,
-    DuplicateCallback,
-)
-from .version import __version__
 from ._configs import get_combined_config, pathname_configs, pages_folder_config
+from ._pages import (
+    _parse_query_string,
+    _page_meta_tags,
+    _path_to_page,
+    _import_layouts_from_pages,
+)
 from ._utils import (
     AttributeDict,
     format_tag,
@@ -61,25 +61,21 @@ from ._utils import (
     parse_version,
     get_caller_name,
 )
-from . import _dash_renderer
-from . import _validate
-from . import _get_paths
-from . import _callback
-from . import _watch
-from . import _get_app
-
-from dash._grouping import map_grouping, grouping_len, update_args_group
-from dash._obsolete import ObsoleteChecker
-
-from . import _pages
-from ._pages import (
-    _parse_query_string,
-    _page_meta_tags,
-    _path_to_page,
-    _import_layouts_from_pages,
+from .dependencies import (
+    Input,
+    Output,
+    State,
 )
-from dash._jupyter import jupyter_dash
-from dash.types import RendererHooks
+from .development.base_component import ComponentRegistry
+from .exceptions import (
+    PreventUpdate,
+    InvalidResourceError,
+    ProxyError,
+    DuplicateCallback,
+)
+from .fingerprint import build_fingerprint, check_fingerprint
+from .resources import Scripts, Css
+from .version import __version__
 
 # If dash_design_kit is installed, check for version
 ddk_version = None
@@ -1405,7 +1401,6 @@ class Dash(ObsoleteChecker):
             callback_context=g,
             app=self,
             app_on_error=self._on_error,
-            app_use_async=self._use_async,
         )
         return partial_func
 

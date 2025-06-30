@@ -1,5 +1,5 @@
+import asyncio
 from dash import Dash, Input, Output, State, dcc, html
-import time
 
 from tests.background_callback.utils import get_background_callback_manager
 
@@ -29,12 +29,16 @@ app.layout = html.Div(
     prevent_initial_call=True,
     background=True,
 )
-def update_output(set_progress, n_clicks, value):
+async def update_output(set_progress, n_clicks, value):
     for i in range(4):
         set_progress(f"Progress {i}/4")
-        time.sleep(1)
+        await asyncio.sleep(1)
     return f"Processed '{value}'"
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    from quart import Quart
+
+    server = Quart(__name__)
+    app.init_server(server)
+    server.run(debug=True)

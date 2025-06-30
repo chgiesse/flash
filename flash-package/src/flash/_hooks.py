@@ -1,7 +1,7 @@
 import typing as _t
 from importlib import metadata as _importlib_metadata
 
-import flask as _f
+import quart as _f
 import typing_extensions as _tx
 
 from dash.exceptions import HookError

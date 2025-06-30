@@ -7,8 +7,8 @@ from functools import partial
 from . import BaseBackgroundCallbackManager
 from .._proxy_set_props import ProxySetProps
 from ..._callback_context import context_value
-from ..._utils import AttributeDict
-from ...exceptions import PreventUpdate
+from dash._utils import AttributeDict
+from dash.exceptions import PreventUpdate
 
 _pending_value = "__$pending__"
 
@@ -36,7 +36,7 @@ class DiskcacheManager(BaseBackgroundCallbackManager):
         """
         try:
             import diskcache  # type: ignore[reportMissingImports]; pylint: disable=import-outside-toplevel
-            import psutil  # noqa: F401,E402 pylint: disable=import-outside-toplevel,unused-import,unused-variable,import-error
+            import psutil  # noqa: F401,E402 pylint: disable=import-outside-toplevel,un_d-import,unused-variable,import-error
             import multiprocess  # noqa: F401,E402 pylint: disable=import-outside-toplevel,unused-import,unused-variable
         except ImportError as missing_imports:
             raise ImportError(

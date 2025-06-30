@@ -1,5 +1,5 @@
+import asyncio
 from dash import Dash, Input, Output, html, callback, set_props
-import time
 
 from tests.background_callback.utils import get_background_callback_manager
 
@@ -27,10 +27,10 @@ app.layout = html.Div(
     background=True,
     interval=500,
 )
-def on_click(_):
+async def on_click(_):
     set_props("secondary", {"children": "first"})
     set_props("secondary", {"style": {"background": "red"}})
-    time.sleep(2)
+    await asyncio.sleep(2)
     set_props("secondary", {"children": "second"})
     return "completed"
 
@@ -40,11 +40,18 @@ def on_click(_):
     prevent_initial_call=True,
     background=True,
 )
-def on_click(_):
+async def on_click(_):
     set_props("no-output", {"children": "started"})
-    time.sleep(2)
+    await asyncio.sleep(2)
     set_props("no-output", {"children": "completed"})
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    from quart import Quart
+
+    # Use Quart as the server
+    server = Quart(__name__)
+    app.init_server(server)
+
+    # Run with Quart's async server
+    server.run(debug=True)

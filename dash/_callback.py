@@ -71,7 +71,7 @@ def callback(
     cancel: Optional[Union[List[Input], Input]] = None,
     manager: Optional[BaseBackgroundCallbackManager] = None,
     cache_args_to_ignore: Optional[list] = None,
-    cache_ignore_triggered=True,
+    _cache_ignore_triggered=True,  # Renamed to _ as it's unused
     on_error: Optional[Callable[[Exception], Any]] = None,
     **_kwargs,
 ):

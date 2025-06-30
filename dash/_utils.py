@@ -1,23 +1,24 @@
 # -*- coding: utf-8 -*-
-import shlex
-import sys
-import uuid
-import hashlib
 from collections import abc
-import subprocess
-import logging
+from functools import wraps
+from html import escape
+import hashlib
+import inspect
 import io
 import json
-import secrets
-import string
-import inspect
+import logging
 import re
+import secrets
+import shlex
+import string
+import subprocess
+import sys
+from typing import Union
+import uuid
 import warnings
+
 from quart.utils import run_sync
 
-from html import escape
-from functools import wraps
-from typing import Union
 from .types import RendererHooks
 
 logger = logging.getLogger()

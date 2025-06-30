@@ -1,5 +1,5 @@
+import asyncio
 from dash import Dash, Input, Output, State, html, clientside_callback
-import time
 
 from tests.background_callback.utils import get_background_callback_manager
 
@@ -34,12 +34,16 @@ clientside_callback(
     background=True,
     prevent_initial_call=True,
 )
-def on_bg_progress(set_progress, _):
+async def on_bg_progress(set_progress, _):
     set_progress("start")
-    time.sleep(2)
+    await asyncio.sleep(2)
     set_progress("stop")
     return "done"
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    from quart import Quart
+
+    server = Quart(__name__)
+    app.init_server(server)
+    server.run(debug=True)

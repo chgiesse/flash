@@ -722,7 +722,7 @@ class Flash(ObsoleteChecker):
         )
         self._add_url("_dash-layout", self.serve_layout)
         self._add_url("_dash-dependencies", self.dependencies)
-        self._add_url("_dash-update-component", self.dispatch, ["POST"])
+        self._add_url("_dash-update-component", self.async_dispatch, ["POST"])
         self._add_url("_reload-hash", self.serve_reload_hash)
         self._add_url("_favicon.ico", self._serve_default_favicon)
         self._add_url("", self.index)
@@ -1405,7 +1405,6 @@ class Flash(ObsoleteChecker):
             callback_context=g,
             app=self,
             app_on_error=self._on_error,
-            app_use_async=self._use_async,
         )
         return partial_func
 

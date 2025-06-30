@@ -1,11 +1,16 @@
-import io
+import ast
 import os
 from setuptools import setup, find_packages
 
-main_ns = {}
-exec(
-    open("dash/version.py", encoding="utf-8").read(), main_ns
-)  # pylint: disable=exec-used, consider-using-with
+
+def get_version():
+    with open("dash/version.py", encoding="utf-8") as version_file:
+        tree = ast.parse(version_file.read())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                if len(node.targets) == 1 and node.targets[0].id == "__version__":
+                    return ast.literal_eval(node.value)
+    raise RuntimeError("Unable to find version string.")
 
 
 def read_req_file(req_type):
@@ -14,20 +19,19 @@ def read_req_file(req_type):
         return [req for req in requires if req and not req.startswith("#")]
 
 
+with open("README.md", encoding="utf-8") as readme_file:
+    long_description = readme_file.read()
+
 setup(
     name="dash",
-    version=main_ns["__version__"],
+    version=get_version(),
     author="Chris Parmer",
     author_email="chris@plotly.com",
     packages=find_packages(exclude=["tests*"]),
     include_package_data=True,
     license="MIT",
-    description=(
-        "A Python framework for building reactive web-apps. " "Developed by Plotly."
-    ),
-    long_description=io.open(
-        "README.md", encoding="utf-8"
-    ).read(),  # pylint: disable=consider-using-with
+    description="A Python framework for building reactive web-apps. Developed by Plotly.",
+    long_description=long_description,
     long_description_content_type="text/markdown",
     install_requires=read_req_file("install"),
     python_requires=">=3.8",
@@ -42,11 +46,11 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "dash-generate-components = " "dash.development.component_generator:cli",
-            "renderer = dash.development.build_process:renderer",
-            "dash-update-components = dash.development.update_components:cli",
+            "dash-generate-components=dash.development.component_generator:cli",
+            "renderer=dash.development.build_process:renderer",
+            "dash-update-components=dash.development.update_components:cli",
         ],
-        "pytest11": ["dash = dash.testing.plugin"],
+        "pytest11": ["dash=dash.testing.plugin"],
     },
     url="https://plotly.com/dash",
     project_urls={

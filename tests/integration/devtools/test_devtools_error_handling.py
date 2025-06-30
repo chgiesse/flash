@@ -1,5 +1,4 @@
 # -*- coding: UTF-8 -*-
-import flaky
 from dash import Dash, Input, Output, html, dcc
 from dash.exceptions import PreventUpdate
 
@@ -120,7 +119,6 @@ def test_dveh006_long_python_errors(dash_duo):
     assert "self.wsgi_app" in error1
 
 
-@flaky.flaky(max_runs=3)
 def test_dveh002_prevent_update_not_in_error_msg(dash_duo):
     # raising PreventUpdate shouldn't display the error message
     app = Dash(__name__)

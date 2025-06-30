@@ -180,7 +180,7 @@ class Table(Component):
         optionalAny: typing.Optional[typing.Any] = None,
         customProp: typing.Optional[typing.Any] = None,
         customArrayProp: typing.Optional[typing.Sequence[typing.Any]] = None,
-        id: typing.Optional[typing.Union[str, dict]] = None,
+        id: typing.Optional[str] = None,
         **kwargs
     ):
         self._prop_names = [

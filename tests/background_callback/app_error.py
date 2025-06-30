@@ -1,5 +1,4 @@
-import time
-
+import asyncio
 import dash
 from dash import html, no_update
 from dash.dependencies import Input, Output
@@ -35,8 +34,8 @@ app.test_lock = lock = background_callback_manager.test_lock
     prevent_initial_call=True,
     background=True,
 )
-def callback(n_clicks):
-    time.sleep(1)
+async def callback(n_clicks):
+    await asyncio.sleep(1)
     if n_clicks == 2:
         raise Exception("bad error")
 
@@ -55,8 +54,8 @@ def callback(n_clicks):
     prevent_initial_call=True,
     background=True,
 )
-def long_multi(n_clicks):
-    time.sleep(1)
+async def long_multi(n_clicks):
+    await asyncio.sleep(1)
     return (
         [f"Updated: {n_clicks}"]
         + [i for i in range(1, n_clicks + 1)]
@@ -65,4 +64,8 @@ def long_multi(n_clicks):
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    from quart import Quart
+
+    server = Quart(__name__)
+    app.init_server(server)
+    server.run(debug=True)

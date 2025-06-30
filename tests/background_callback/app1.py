@@ -1,5 +1,5 @@
+import asyncio
 from dash import Dash, Input, Output, dcc, html
-import time
 
 from tests.background_callback.utils import get_background_callback_manager
 
@@ -22,10 +22,16 @@ app.layout = html.Div(
     manager=background_callback_manager,
     background=True,
 )
-def update_output(value):
-    time.sleep(0.1)
+async def update_output(value):
+    await asyncio.sleep(0.1)
     return value
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    from quart import Quart
+
+    # Use Quart as the server
+    server = Quart(__name__)
+    app.init_server(server)
+    # Run with Quart's async server
+    server.run(debug=True)
