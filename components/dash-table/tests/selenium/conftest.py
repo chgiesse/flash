@@ -54,7 +54,7 @@ def preconditions(*precs):
     def decorate(f):
         fspec = inspect.getfullargspec(f)
 
-        for (appargs, closureargs, p) in precinfo:
+        for appargs, closureargs, p in precinfo:
             for apparg in appargs:
                 if apparg not in fspec.args:
                     raise PreconditionError(
@@ -77,7 +77,7 @@ def preconditions(*precs):
         @wraps(f)
         def g(*a, **kw):
             args = inspect.getcallargs(f, *a, **kw)
-            for (appargs, _, p) in precinfo:
+            for appargs, _, p in precinfo:
                 if not p(*[args[aa] for aa in appargs]):
                     raise PreconditionError(
                         "Precondition failed in call {!r}{}:\n  {!s}\n".format(

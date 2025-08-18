@@ -960,9 +960,11 @@ class Flash(ObsoleteChecker):
 
         return "\n".join(
             [
-                format_tag("link", link, opened=True)
-                if isinstance(link, dict)
-                else f'<link rel="stylesheet" href="{link}">'
+                (
+                    format_tag("link", link, opened=True)
+                    if isinstance(link, dict)
+                    else f'<link rel="stylesheet" href="{link}">'
+                )
                 for link in (external_links + links)
             ]
         )
@@ -1016,9 +1018,11 @@ class Flash(ObsoleteChecker):
 
         return "\n".join(
             [
-                format_tag("script", src)
-                if isinstance(src, dict)
-                else f'<script src="{src}"></script>'
+                (
+                    format_tag("script", src)
+                    if isinstance(src, dict)
+                    else f'<script src="{src}"></script>'
+                )
                 for src in srcs
             ]
             + [f"<script>{src}</script>" for src in self._inline_scripts]
@@ -1912,15 +1916,21 @@ class Flash(ObsoleteChecker):
                         packages[index] = dash_spec
 
             component_packages_dist = [
-                dash_test_path
-                if isinstance(package, ModuleSpec)
-                else os.path.dirname(package.path)
-                if hasattr(package, "path")
-                else os.path.dirname(
-                    package._path[0]  # pylint: disable=protected-access
+                (
+                    dash_test_path
+                    if isinstance(package, ModuleSpec)
+                    else (
+                        os.path.dirname(package.path)
+                        if hasattr(package, "path")
+                        else (
+                            os.path.dirname(
+                                package._path[0]  # pylint: disable=protected-access
+                            )
+                            if hasattr(package, "_path")
+                            else package.filename
+                        )
+                    )
                 )
-                if hasattr(package, "_path")
-                else package.filename
                 for package in packages
             ]
 
@@ -2352,19 +2362,25 @@ class Flash(ObsoleteChecker):
                 # )
                 self.validation_layout = html.Div(
                     [
-                        await page["layout"]()
-                        if inspect.iscoroutinefunction(page["layout"])
-                        else page["layout"]()
-                        if callable(page["layout"])
-                        else page["layout"]
+                        (
+                            await page["layout"]()
+                            if inspect.iscoroutinefunction(page["layout"])
+                            else (
+                                page["layout"]()
+                                if callable(page["layout"])
+                                else page["layout"]
+                            )
+                        )
                         for page in _pages.PAGE_REGISTRY.values()
                     ]
                     + [
-                        await self.layout()
-                        if inspect.iscoroutinefunction(self.layout)
-                        else self.layout()
-                        if callable(self.layout)
-                        else self.layout
+                        (
+                            await self.layout()
+                            if inspect.iscoroutinefunction(self.layout)
+                            else self.layout()
+                            if callable(self.layout)
+                            else self.layout
+                        )
                     ]
                 )
 

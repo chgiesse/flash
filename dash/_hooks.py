@@ -190,6 +190,44 @@ class _Hooks:
 
         return wrap
 
+    def custom_data(
+        self, namespace: str, priority: _t.Optional[int] = None, final=False
+    ):
+        """
+        Add data to the callback_context.custom_data property under the namespace.
+
+        The hook function takes the current context_value and before the ctx is set
+        and has access to the flask request context.
+        """
+
+        def wrap(func: _t.Callable[[_t.Dict], _t.Any]):
+            self.add_hook(
+                "custom_data",
+                func,
+                priority=priority,
+                final=final,
+                data={"namespace": namespace},
+            )
+            return func
+
+        return wrap
+
+    def devtool(self, namespace: str, component_type: str, props=None):
+        """
+        Add a component to be rendered inside the dev tools.
+        If it's a dash component, it can be used in callbacks provided
+        that it has an id and the dependency is set with allow_optional=True.
+        `props` can be a function, in which case it will be called before
+        sending the component to the frontend.
+        """
+        self._ns["dev_tools"].append(
+            {
+                "namespace": namespace,
+                "type": component_type,
+                "props": props or {},
+            }
+        )
+
 
 hooks = _Hooks()
 
