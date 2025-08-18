@@ -5,7 +5,7 @@ from dash._get_paths import (  # noqa: F401,E402
     strip_relative_path,
 )
 from dash._patch import Patch
-from dash.background_callback import (
+from .background_callback import (
     CeleryManager,
     DiskcacheManager,
 )
