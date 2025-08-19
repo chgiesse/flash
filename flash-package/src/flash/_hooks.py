@@ -59,7 +59,7 @@ class _Hooks:
     def add_hook(
         self,
         hook: str,
-        func: _t.Callable,
+        func: _t.Callable | _t.Coroutine,
         priority: _t.Optional[int] = None,
         final=False,
         data=None,
@@ -122,7 +122,10 @@ class _Hooks:
         Add a route to the Dash server.
         """
 
-        def wrap(func: _t.Callable[[], _f.Response]):
+        def wrap(
+            func: _t.Callable[[], _f.Response]
+            | _t.Coroutine[_t.Any, _t.Any, _f.Response]
+        ):
             _name = name or func.__name__
             self.add_hook(
                 "routes",

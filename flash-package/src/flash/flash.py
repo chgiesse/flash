@@ -18,6 +18,7 @@ import hashlib
 import base64
 import traceback
 import inspect
+import json
 from urllib.parse import urlparse
 from typing import Any, Callable, Dict, Optional, Union, Sequence
 
@@ -77,6 +78,18 @@ from ._pages import (
     _page_meta_tags,
     _path_to_page,
     _import_layouts_from_pages,
+)
+from ._event_callback import (
+    SSE_CALLBACK_ENDPOINT,
+    SSE_CALLBACK_ID_KEY,
+    STEAM_SEPERATOR,
+    INIT_TOKEN,
+    ERROR_TOKEN,
+    DONE_TOKEN,
+    ServerSentEvent,
+    _SSEServerObjects,
+    get_callback_id,
+    signal_type,
 )
 from dash._jupyter import jupyter_dash
 from dash.types import RendererHooks
@@ -599,6 +612,7 @@ class Flash(ObsoleteChecker):
                 "See https://dash.plotly.com/dash-in-jupyter for more details."
             )
         self.setup_startup_routes()
+        self.setup_sse_endpoint()
 
     def _setup_hooks(self):
         # pylint: disable=import-outside-toplevel,protected-access
@@ -2397,3 +2411,73 @@ class Flash(ObsoleteChecker):
                 Output(_ID_DUMMY, "children"),
                 Input(_ID_STORE, "data"),
             )
+
+    def setup_sse_endpoint(self):
+        @self.server.post(SSE_CALLBACK_ENDPOINT, methods=["POST"])
+        async def sse_callback_endpoint():
+
+            if "text/event-stream" not in quart.request.accept_mimetypes:
+                quart.abort(400)
+
+            data = await quart.request.get_json()
+            content = data["content"].copy()
+            ctx = content.pop("callback_context", {})
+            callback_id = get_callback_id(content.pop(SSE_CALLBACK_ID_KEY))
+
+            if not callback_id:
+                raise ValueError("callback_id is required")
+
+            def send_signal(signal: signal_type, payload: Dict = {}):
+                response = [signal, None, payload]
+                event = ServerSentEvent(json.dumps(response) + STEAM_SEPERATOR)
+                return event.encode()
+
+            @quart.stream_with_context
+            async def callback_generator():
+                yield send_signal(INIT_TOKEN)
+                sse_obj = _SSEServerObjects.get_func(callback_id)
+
+                if not sse_obj:
+                    error_message = f"Could not find function for sse id {callback_id}"
+                    yield send_signal(ERROR_TOKEN, {"error": error_message})
+                    return
+
+                callback_func = sse_obj.func
+                on_error = sse_obj.on_error
+
+                try:
+                    async for item in callback_func(**content):
+                        if item is None:
+                            warnings.warn(
+                                f"Callback generator functions should not return None values - Callback: {sse_obj.func_name} | {callback_id}"
+                            )
+                            continue
+
+                        yield item
+                        time.sleep(0.05)
+                    yield send_signal(DONE_TOKEN)
+
+                except Exception as e:
+                    handle_error = True
+                    if on_error:
+                        handle_error = False
+                        yield on_error(e)
+
+                    yield send_signal(
+                        ERROR_TOKEN,
+                        {
+                            "error": str(e),
+                            "handle_error": handle_error,
+                            "reset_props": sse_obj.reset_props,
+                        },
+                    )
+
+            response = quart.make_response(callback_generator())
+            response.headers.update(
+                {
+                    "Content-Type": "text/event-stream",
+                    "Cache-Control": "no-cache",
+                    "Transfer-Encoding": "chunked",
+                }
+            )
+            return response
