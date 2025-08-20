@@ -1,3 +1,4 @@
+from .SSE import SSE
 from dash import html
 from dash._get_paths import (  # noqa: F401,E402
     get_asset_url,
@@ -29,3 +30,33 @@ from ._pages import PAGE_REGISTRY as page_registry, register_page
 from .flash import Flash, no_update, page_container
 
 ctx = callback_context
+__all__ = [
+    "SSE",
+    "get_asset_url",
+    "get_relative_path",
+    "strip_relative_path",
+    "Patch",
+    "event_callback",
+    "stream_props",
+    "CeleryManager",
+    "DiskcacheManager",
+    "Input",
+    "Output",
+    "State",
+    "ALL",
+    "ALLSMALLER",
+    "MATCH",
+    "ClientsideFunction",
+    "callback",
+    "clientside_callback",
+    "callback_context",
+    "set_props",
+    "get_app",
+    "hooks",
+    "page_registry",
+    "register_page",
+    "Flash",
+    "no_update",
+    "page_container",
+    "ctx",
+]

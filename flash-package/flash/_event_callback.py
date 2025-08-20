@@ -1,6 +1,7 @@
 from ._hooks import hooks
 from ._utils import recursive_to_plotly_json
-
+from ._callback import clientside_callback
+from .SSE import SSE
 from dataclasses import dataclass
 from dash import html, State, Input, Output, MATCH
 from dash.dependencies import DashDependency
@@ -9,7 +10,6 @@ import typing as _t
 import json
 import inspect
 import hashlib
-import asyncio
 
 
 SSE_CALLBACK_ENDPOINT: _t.Final[str] = "/dash_update_component_sse"
@@ -37,10 +37,10 @@ class SSECallbackComponent(html.Div):
         sse = lambda idx: {"type": "dash-event-stream", "index": idx}
         store = lambda idx: {"type": "dash-event-stream-store", "index": idx}
 
-    def __init__(self, callback_id: str):
+    def __init__(self, callback_id: str, concat: bool = True):
         super().__init__(
             [
-                SSE(id=self.ids.sse(callback_id), concat=True),
+                SSE(id=self.ids.sse(callback_id), concat=concat),
                 Store(id=self.ids.store(callback_id), data={}, storage_type="memory"),
             ],
         )
@@ -187,7 +187,7 @@ def generate_clientside_callback(input_ids, sse_callback_id, prevent_initial_cal
                 payload: JSON.stringify({{ content: payload }}),
                 headers: {{ "Content-Type": "application/json" }},
                 method: "POST",
-                start: false
+
             }};
 
             // Set props for the SSE component
@@ -226,12 +226,10 @@ def event_callback(
     cancel: _t.Optional[_t.List[_t.Tuple[DashDependency, _t.Any]]] = None,
     reset_props: _t.Dict = {},
     prevent_initial_call=True,
+    concat: bool = True,
 ):
     def decorator(func: _t.Callable) -> _t.Callable:
-        if asyncio.iscoroutine(func):
-            raise ValueError("Event callback needs to be a normal function, not async")
-
-        if not inspect.isgeneratorfunction(func):
+        if not inspect.isasyncgenfunction(func):
             raise ValueError("Event callback must be a generator function")
 
         sig = inspect.signature(func)
@@ -244,7 +242,7 @@ def event_callback(
         clientside_function = generate_clientside_callback(
             param_names, callback_id, prevent_initial_call
         )
-        hooks.clientside_callback(
+        clientside_callback(
             clientside_function,
             *dependencies,
             prevent_initial_call=prevent_initial_call,
@@ -252,7 +250,7 @@ def event_callback(
 
         @hooks.layout()
         def add_sse_component(layout):
-            component = SSECallbackComponent(callback_id)
+            component = SSECallbackComponent(callback_id, concat)
             return (
                 [component] + layout
                 if isinstance(layout, list)
@@ -270,7 +268,7 @@ def event_callback(
             )
             if reset_callback_function:
                 reset_dependencies = [dependency for dependency, _ in cancel_w_sse]
-                hooks.clientside_callback(
+                clientside_callback(
                     reset_callback_function,
                     *reset_dependencies,
                     prevent_initial_call=True,
@@ -281,7 +279,7 @@ def event_callback(
     return decorator
 
 
-hooks.clientside_callback(
+clientside_callback(
     f"""
     function(message, processedData, sseId) {{
         if (!message) {{ return processedData || 0; }}
@@ -348,4 +346,5 @@ hooks.clientside_callback(
     Input(SSECallbackComponent.ids.sse(MATCH), "value"),
     State(SSECallbackComponent.ids.store(MATCH), "data"),
     State(SSECallbackComponent.ids.sse(MATCH), "id"),
+    prevent_initial_call=True,
 )

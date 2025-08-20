@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dash-flash"
-version = "1.1.1"
+version = "1.2.0"
 description = "Flash - async port of the Dash framework"
 authors = ["chgiesse"]
 license = "MIT"
@@ -8,7 +8,7 @@ readme = "README.md"
 repository = "https://github.com/chgiesse/flash"
 package-mode = true
 packages = [
-    { include = "flash", from = "src" }
+    { include = "flash" }
 ]
 
 

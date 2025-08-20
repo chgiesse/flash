@@ -616,7 +616,7 @@ class Flash(ObsoleteChecker):
 
     def _setup_hooks(self):
         # pylint: disable=import-outside-toplevel,protected-access
-        from dash._hooks import HooksManager
+        from flash._hooks import HooksManager
 
         self._hooks = HooksManager
         self._hooks.register_setuptools()
@@ -815,7 +815,7 @@ class Flash(ObsoleteChecker):
         layout = self._layout_value()
 
         for hook in self._hooks.get_hooks("layout"):
-            layout = await hook(layout)
+            layout = hook(layout)
 
         # TODO - Set browser cache limit - pass hash into frontend
         return quart.Response(
@@ -2413,12 +2413,13 @@ class Flash(ObsoleteChecker):
             )
 
     def setup_sse_endpoint(self):
-        @self.server.post(SSE_CALLBACK_ENDPOINT, methods=["POST"])
+        @self.server.post(SSE_CALLBACK_ENDPOINT)
         async def sse_callback_endpoint():
+            print("Received SSE callback request")
 
             if "text/event-stream" not in quart.request.accept_mimetypes:
+                print("ABORTING: No text/event-stream in request accept header")
                 quart.abort(400)
-
             data = await quart.request.get_json()
             content = data["content"].copy()
             ctx = content.pop("callback_context", {})
@@ -2472,7 +2473,7 @@ class Flash(ObsoleteChecker):
                         },
                     )
 
-            response = quart.make_response(callback_generator())
+            response = await quart.make_response(callback_generator())
             response.headers.update(
                 {
                     "Content-Type": "text/event-stream",
@@ -2480,4 +2481,5 @@ class Flash(ObsoleteChecker):
                     "Transfer-Encoding": "chunked",
                 }
             )
+            response.timeout = None  # Disable timeout for SSE
             return response

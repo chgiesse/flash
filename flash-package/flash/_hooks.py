@@ -123,8 +123,9 @@ class _Hooks:
         """
 
         def wrap(
-            func: _t.Callable[[], _f.Response]
-            | _t.Coroutine[_t.Any, _t.Any, _f.Response]
+            func: (
+                _t.Callable[[], _f.Response] | _t.Coroutine[_t.Any, _t.Any, _f.Response]
+            ),
         ):
             _name = name or func.__name__
             self.add_hook(

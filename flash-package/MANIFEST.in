@@ -1,0 +1,11 @@
+include flash/streaming.min.js
+include flash/streaming.min.js.map
+include flash/async-*.js
+include flash/async-*.js.map
+include flash/*-shared.js
+include flash/*-shared.js.map
+include flash/metadata.json
+include flash/package-info.json
+include README.md
+include LICENSE
+include package.json
