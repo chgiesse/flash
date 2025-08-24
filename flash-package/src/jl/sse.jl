@@ -10,11 +10,6 @@ The SSE component makes it possible to collect data from e.g. a ResponseStream. 
 https://github.com/mpetazzoni/sse.js
 Keyword arguments:
 - `id` (String; optional): Unique ID to identify this component in Dash callbacks.
-- `animate_chunk` (Real; optional): Chunk size (i.e. number of characters) for the animation.
-- `animate_delay` (Real; optional): If set, each character is delayed by some amount of time. Used to animate the stream.
-- `animate_prefix` (String; optional): Prefix to be excluded from the animation.
-- `animate_suffix` (String; optional): Suffix to be excluded from the animation.
-- `animation` (String; optional): The animation of the data.
 - `concat` (Bool; optional): A boolean indicating if the stream values should be concatenated.
 - `done` (Bool; optional): A boolean indicating if the (current) stream has ended.
 - `options` (optional): Options passed to the SSE constructor.. options has the following type: lists containing elements 'headers', 'payload', 'method', 'withCredentials', 'start', 'debug'.
@@ -25,11 +20,12 @@ Those elements have the following types:
   - `withCredentials` (Bool; optional): - flag, if credentials needed
   - `start` (Bool; optional): - flag, if streaming should start automatically
   - `debug` (Bool; optional): - debugging flag
+- `update_component` (Bool; optional): A boolean indicating if the strea, should update components.
 - `url` (String; optional): URL of the endpoint.
 - `value` (String; optional): The data value. Either the latest, or the concatenated depending on the `concat` property.
 """
 function sse(; kwargs...)
-        available_props = Symbol[:id, :animate_chunk, :animate_delay, :animate_prefix, :animate_suffix, :animation, :concat, :done, :options, :url, :value]
+        available_props = Symbol[:id, :concat, :done, :options, :update_component, :url, :value]
         wild_props = Symbol[]
         return Component("sse", "SSE", "flash", available_props, wild_props; kwargs...)
 end

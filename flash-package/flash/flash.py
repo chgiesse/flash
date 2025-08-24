@@ -2455,7 +2455,7 @@ class Flash(ObsoleteChecker):
                             continue
 
                         yield item
-                        time.sleep(0.05)
+                        time.sleep(0.2)
                     yield send_signal(DONE_TOKEN)
 
                 except Exception as e:

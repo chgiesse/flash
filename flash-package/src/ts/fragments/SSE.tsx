@@ -1,29 +1,34 @@
 import React, { useEffect, useState } from 'react';
 import { SSE as SSEjs, SSEvent } from 'sse.js';
-import { Props } from '../components/SSE'; // reuse the interface
+import { Props as BaseProps } from '../components/SSE'; // reuse the interface
+
+declare global {
+  interface Window {
+    dash_clientside?: {
+      set_props?: (componentId: string, props: any) => void;
+    };
+  }
+}
+
+interface Props extends BaseProps {
+  update_component?: any;
+}
 
 const SSE = ({
   url,
   options,
   concat = true,
-  animate_delay = 0,
-  animate_chunk = 1,
-  animate_prefix,
-  animate_suffix,
   setProps,
   done,
+  update_component,
 }: Props) => {
   const [data, setData] = useState<string>('');
-  const [animateData, setAnimateData] = useState<string>('');
   const [doneData, setDoneData] = useState<boolean>(done || false);
-
-  const animate = animate_delay > 0 && animate_chunk > 0;
 
   useEffect(() => {
     // Reset on URL change.
     setDoneData(false);
     setData('');
-    setAnimateData('');
     if (!url) {
       return;
     }
@@ -37,7 +42,24 @@ const SSE = ({
         return;
       }
       // Update value.
-      setData((prev) => (concat ? prev.concat(e.data) : e.data));
+      // setData((prev) => (concat ? prev.concat(e.data) : e.data));
+      // If update_component is set, try to parse and update Dash component
+      const dashSetProps = window.dash_clientside?.set_props;
+      if (update_component && dashSetProps) {
+        try {
+          // Expecting SSE message to be a JSON array: [_, componentId, props] or [componentId, props]
+          const msg = JSON.parse(e.data);
+          if (Array.isArray(msg)) {
+            // If 3 elements, ignore the first (status); if 2, use both
+            const componentId = msg.length === 3 ? msg[1] : msg[0];
+            const props = msg.length === 3 ? msg[2] : msg[1];
+            dashSetProps(componentId, props);
+          }
+        } catch (err) {
+          // Not a JSON message, ignore
+          console.log("Not a JSON message, ignoring for update_component", e.data)
+        }
+      }
     };
     sse.onerror = (e: Event) => {
       console.log('ERROR', e);
@@ -50,57 +72,13 @@ const SSE = ({
   }, [url, options, concat]);
 
   useEffect(() => {
-    if (!animate) {
-      return;
-    }
-    let filteredData = data;
-    if (animate_prefix) {
-      if (!data.includes(animate_prefix)) {
-        return;
-      }
-      filteredData = filteredData.slice(animate_prefix.length);
-    }
-    if (animate_suffix && filteredData.includes(animate_suffix)) {
-      filteredData = filteredData.split(animate_suffix)[0];
-    }
-    // If done, animate the whole data.
-    if (done) {
-      setAnimateData(filteredData);
-      return;
-    }
-    if (filteredData.length === 0) {
-      return;
-    }
-    let buffer = animateData;
-    const interval = setInterval(() => {
-      if (buffer.length >= filteredData.length) {
-        clearInterval(interval);
-      }
-      const endIdx = Math.min(buffer.length + animate_chunk, filteredData.length);
-      buffer = filteredData.slice(0, endIdx);
-      setAnimateData(buffer);
-    }, animate_delay);
-    return () => clearInterval(interval);
-  }, [
-    data,
-    done,
-    animate,
-    animate_delay,
-    animate_chunk,
-    animate_prefix,
-    animate_suffix,
-    animateData,
-  ]);
-
-  useEffect(() => {
     if (setProps) {
       setProps({
-        animation: animateData,
         value: data,
         done: doneData,
       });
     }
-  }, [animateData, data, doneData, setProps]);
+  }, [data, doneData, setProps]);
 
   return <></>;
 };

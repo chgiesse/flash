@@ -8,10 +8,6 @@ pk.SSE.propTypes = {id:pt.string,
  options:pt.shape({headers:pt.objectOf(pt.string),payload:pt.oneOfType([pt.string]),method:pt.string,withCredentials:pt.bool,start:pt.bool,debug:pt.bool}),
  url:pt.string,
  concat:pt.bool,
- animate_delay:pt.number,
- animate_chunk:pt.number,
- animate_prefix:pt.string,
- animate_suffix:pt.string,
  value:pt.string,
- animation:pt.string,
- done:pt.bool};
+ done:pt.bool,
+ update_component:pt.bool};

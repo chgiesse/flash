@@ -40,7 +40,7 @@ class SSECallbackComponent(html.Div):
     def __init__(self, callback_id: str, concat: bool = True):
         super().__init__(
             [
-                SSE(id=self.ids.sse(callback_id), concat=concat),
+                SSE(id=self.ids.sse(callback_id), concat=concat, update_component=True),
                 Store(id=self.ids.store(callback_id), data={}, storage_type="memory"),
             ],
         )
@@ -216,7 +216,8 @@ def generate_deterministic_id(func: _t.Callable, dependencies: _t.Tuple) -> str:
 def stream_props(component_id: str | _t.Dict, props: _t.Dict):
     """Generate notification props for the specified component ID."""
     response = [RUNNING_TOKEN, component_id, recursive_to_plotly_json(props)]
-    event = ServerSentEvent(json.dumps(response) + STEAM_SEPERATOR)
+    # event = ServerSentEvent(json.dumps(response) + STEAM_SEPERATOR)
+    event = ServerSentEvent(json.dumps(response))
     return event.encode()
 
 
@@ -279,72 +280,72 @@ def event_callback(
     return decorator
 
 
-clientside_callback(
-    f"""
-    function(message, processedData, sseId) {{
-        if (!message) {{ return processedData || 0; }}
+# clientside_callback(
+#     f"""
+#     function(message, processedData, sseId) {{
+#         if (!message) {{ return processedData || 0; }}
 
-        const TOKENS = {{
-            DONE: "{DONE_TOKEN}",
-            INIT: "{INIT_TOKEN}",
-            RUNNING: "{RUNNING_TOKEN}",
-            ERROR: "{ERROR_TOKEN}"
-        }};
+#         const TOKENS = {{
+#             DONE: "{DONE_TOKEN}",
+#             INIT: "{INIT_TOKEN}",
+#             RUNNING: "{RUNNING_TOKEN}",
+#             ERROR: "{ERROR_TOKEN}"
+#         }};
 
-        const setProps = window.dash_clientside.set_props;
-        const messageList = message.split("{STEAM_SEPERATOR}");
-        let startIdx = processedData || 0;
+#         const setProps = window.dash_clientside.set_props;
+#         const messageList = message.split("{STEAM_SEPERATOR}");
+#         let startIdx = processedData || 0;
 
-        if (messageList[messageList.length - 1] === '') {{
-            messageList.pop();
-        }}
+#         if (messageList[messageList.length - 1] === '') {{
+#             messageList.pop();
+#         }}
 
-        const newMessages = messageList.slice(startIdx);
+#         const newMessages = messageList.slice(startIdx);
 
-        newMessages.forEach(messageStr => {{
-            try {{
-                const [status, componentId, props] = JSON.parse(messageStr);
+#         newMessages.forEach(messageStr => {{
+#             try {{
+#                 const [status, componentId, props] = JSON.parse(messageStr);
 
-                switch (status) {{
-                    case TOKENS.INIT:
-                        processedData = 1;
-                        setProps(sseId, {{done: false}});
-                        break;
+#                 switch (status) {{
+#                     case TOKENS.INIT:
+#                         processedData = 1;
+#                         setProps(sseId, {{done: false}});
+#                         break;
 
-                    case TOKENS.DONE:
-                        processedData = 0;
-                        setProps(sseId, {{done: true, url: null}});
-                        break;
+#                     case TOKENS.DONE:
+#                         processedData = 0;
+#                         setProps(sseId, {{done: true, url: null}});
+#                         break;
 
-                    case TOKENS.ERROR: {{
-                        processedData = 0;
-                        const resetProps = props.reset_props || {{}};
-                        if (props.handle_error) {{
-                            window.alert("Error occurred while processing stream - " + props.error);
-                        }}
-                        for (const [rcid, rprops] of Object.entries(resetProps)) {{
-                            setProps(rcid, rprops);
-                        }}
-                        setProps(sseId, {{done: true, url: null}});
-                        break;
-                    }}
+#                     case TOKENS.ERROR: {{
+#                         processedData = 0;
+#                         const resetProps = props.reset_props || {{}};
+#                         if (props.handle_error) {{
+#                             window.alert("Error occurred while processing stream - " + props.error);
+#                         }}
+#                         for (const [rcid, rprops] of Object.entries(resetProps)) {{
+#                             setProps(rcid, rprops);
+#                         }}
+#                         setProps(sseId, {{done: true, url: null}});
+#                         break;
+#                     }}
 
-                    case TOKENS.RUNNING:
-                        setProps(componentId, props);
-                        processedData++;
-                }}
-            }} catch (e) {{
-                processedData = 0;
-                setProps(sseId, {{done: true, url: null}});
-            }}
-        }});
+#                     case TOKENS.RUNNING:
+#                         setProps(componentId, props);
+#                         processedData++;
+#                 }}
+#             }} catch (e) {{
+#                 processedData = 0;
+#                 setProps(sseId, {{done: true, url: null}});
+#             }}
+#         }});
 
-        return processedData;
-    }}
-    """,
-    Output(SSECallbackComponent.ids.store(MATCH), "data"),
-    Input(SSECallbackComponent.ids.sse(MATCH), "value"),
-    State(SSECallbackComponent.ids.store(MATCH), "data"),
-    State(SSECallbackComponent.ids.sse(MATCH), "id"),
-    prevent_initial_call=True,
-)
+#         return processedData;
+#     }}
+#     """,
+#     Output(SSECallbackComponent.ids.store(MATCH), "data"),
+#     Input(SSECallbackComponent.ids.sse(MATCH), "value"),
+#     State(SSECallbackComponent.ids.store(MATCH), "data"),
+#     State(SSECallbackComponent.ids.sse(MATCH), "id"),
+#     prevent_initial_call=True,
+# )

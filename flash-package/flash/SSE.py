@@ -28,22 +28,6 @@ class SSE(Component):
     - id (string; optional):
         Unique ID to identify this component in Dash callbacks.
 
-    - animate_chunk (number; optional):
-        Chunk size (i.e. number of characters) for the animation.
-
-    - animate_delay (number; optional):
-        If set, each character is delayed by some amount of time. Used to
-        animate the stream.
-
-    - animate_prefix (string; optional):
-        Prefix to be excluded from the animation.
-
-    - animate_suffix (string; optional):
-        Suffix to be excluded from the animation.
-
-    - animation (string; optional):
-        The animation of the data.
-
     - concat (boolean; optional):
         A boolean indicating if the stream values should be concatenated.
 
@@ -74,6 +58,9 @@ class SSE(Component):
         - debug (boolean; optional):
             - debugging flag.
 
+    - update_component (boolean; optional):
+        A boolean indicating if the strea, should update components.
+
     - url (string; optional):
         URL of the endpoint.
 
@@ -103,39 +90,27 @@ class SSE(Component):
         options: typing.Optional["Options"] = None,
         url: typing.Optional[str] = None,
         concat: typing.Optional[bool] = None,
-        animate_delay: typing.Optional[NumberType] = None,
-        animate_chunk: typing.Optional[NumberType] = None,
-        animate_prefix: typing.Optional[str] = None,
-        animate_suffix: typing.Optional[str] = None,
         value: typing.Optional[str] = None,
-        animation: typing.Optional[str] = None,
         done: typing.Optional[bool] = None,
+        update_component: typing.Optional[bool] = None,
         **kwargs
     ):
         self._prop_names = [
             "id",
-            "animate_chunk",
-            "animate_delay",
-            "animate_prefix",
-            "animate_suffix",
-            "animation",
             "concat",
             "done",
             "options",
+            "update_component",
             "url",
             "value",
         ]
         self._valid_wildcard_attributes = []
         self.available_properties = [
             "id",
-            "animate_chunk",
-            "animate_delay",
-            "animate_prefix",
-            "animate_suffix",
-            "animation",
             "concat",
             "done",
             "options",
+            "update_component",
             "url",
             "value",
         ]

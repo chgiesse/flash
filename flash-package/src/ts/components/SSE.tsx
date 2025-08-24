@@ -18,33 +18,17 @@ export type Props = DashComponentProps & {
    */
   concat?: boolean;
   /**
-   * If set, each character is delayed by some amount of time. Used to animate the stream.
-   */
-  animate_delay?: number;
-  /**
-   * Chunk size (i.e. number of characters) for the animation.
-   */
-  animate_chunk?: number;
-  /**
-   * Prefix to be excluded from the animation.
-   */
-  animate_prefix?: string;
-  /**
-   * Suffix to be excluded from the animation.
-   */
-  animate_suffix?: string;
-  /**
    * The data value. Either the latest, or the concatenated depending on the `concat` property.
    */
   value?: string;
   /**
-   * The animation of the data.
-   */
-  animation?: string;
-  /**
    * A boolean indicating if the (current) stream has ended.
    */
   done?: boolean;
+  /**
+   * A boolean indicating if the strea, should update components.
+   */
+  update_component?: boolean;
 };
 
 /**
