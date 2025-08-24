@@ -1,61 +1,229 @@
-# Dash
+<p align="center">
+    <img src="flash-package/flash-logo.png" alt="logo" width=300 >
+</p>
+<p align="center">
+    <img src="https://badgen.net/pypi/license/dash-flash">
+    <a href="https://pypi.org/project/dash-flash/">
+    <img src="https://badgen.net/pypi/v/dash-flash">
+    </a>
+    <img src="https://static.pepy.tech/personalized-badge/dash-flash?period=total&units=international_system&left_color=grey&right_color=brightgreen&left_text=Downloads">
+</p>
 
-[![CircleCI](https://img.shields.io/circleci/project/github/plotly/dash/master.svg)](https://circleci.com/gh/plotly/dash)
-[![GitHub](https://img.shields.io/github/license/plotly/dash.svg?color=dark-green)](https://github.com/plotly/dash/blob/master/LICENSE)
-[![PyPI](https://img.shields.io/pypi/v/dash.svg?color=dark-green)](https://pypi.org/project/dash/)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/dash.svg?color=dark-green)](https://pypi.org/project/dash/)
-[![GitHub commit activity](https://img.shields.io/github/commit-activity/y/plotly/dash.svg?color=dark-green)](https://github.com/plotly/dash/graphs/contributors)
+Flash is an async‑first, drop‑in replacement for Dash. It swaps Flask for Quart (ASGI) under the hood so your Dash apps can run true async callbacks, speak Server‑Sent Events (SSE), and use websockets without workarounds. On top of the Dash API you know, Flash adds streaming superpowers designed to work together:
 
-#### *Dash is the most downloaded, trusted Python framework for building ML & data science web apps*.
+- event_callback — fire on server-side events and long‑running tasks
+- stream_props (used inside event_callback) — yield progressive UI updates directly into component props via native SSE
 
-Built on top of [Plotly.js](https://github.com/plotly/plotly.js), [React](https://reactjs.org/) and [Flask](https://palletsprojects.com/p/flask/), Dash ties modern UI elements like dropdowns, sliders, and graphs directly to your analytical Python code. Read [our tutorial](https://dash.plotly.com/getting-started) (proudly crafted ❤️ with Dash itself).
+Build reactive dashboards that don’t just update—they stream.
 
-- [Docs](https://dash.plotly.com/getting-started): Create your first Dash app in under 5 minutes
+## Table of contents
 
-- [dash.gallery](https://dash.gallery): Dash app gallery with Python & R code
+- [Getting started](#getting-started)
+- [Basic callbacks](#basic-callbacks)
+- [Event callback](#event-callback)
+    - [Basic Stream](#basic-event-callback)
+    - [Endless Stream](#endless-event-callback)
+    - [Cancel streams](#cancel-streams)
+    - [Handle error](#handle-error)
+    - [Reset props](#reset-props)
 
-<div align="center">
-  <a href="https://dash.plotly.com/project-maintenance">
-    <img src="https://dash.plotly.com/assets/images/maintained-by-plotly.png" width="400px" alt="Maintained by Plotly">
-  </a>
-</div>
+## Why use Flash?
+
+- Async everywhere: Write `async def` callbacks and endpoints; await databases, APIs, and background work naturally.
+- Progressive rendering: Push partial results as they’re ready using `event_callback` + `stream_props` (native SSE, no polling).
+- Real‑time UX: Out‑of‑the‑box SSE and websockets for live metrics, logs, and notifications.
+- Familiar by design: Keep Dash’s component model, layout patterns, and callback signatures—just add async and streaming when you need it.
+
+## How is it different from Dash?
+
+- Runtime: `Quart` (ASGI) instead of `Flask` (WSGI) to enable native async I/O.
+- Callbacks: Supports `async def` callbacks and async endpoints without threads or hacks.
+- Streaming: New `event_callback` decorator and `stream_props` helper provide native SSE streams for progressive prop updates
+- Realtime transports: SSE and websockets are first‑class citizens.
+- Compatibility: Most Dash apps run as‑is. For streaming use cases, switch to `event_callback` or add `stream_props` to target props; deploy with an ASGI server.
 
 
-### Dash App Examples
+## Getting started
 
-| Dash App | Description |
-|--- | :---: |
-|![Sample Dash App](https://user-images.githubusercontent.com/1280389/30086128-9bb4a28e-9267-11e7-8fe4-bbac7d53f2b0.gif) | Here’s a simple example of a Dash App that ties a Dropdown to a Plotly Graph. As the user selects a value in the Dropdown, the application code dynamically exports data from Google Finance into a Pandas DataFrame. This app was written in just **43** lines of code ([view the source](https://gist.github.com/chriddyp/3d2454905d8f01886d651f207e2419f0)). |
-|![Crossfiltering Dash App](https://user-images.githubusercontent.com/1280389/30086123-97c58bde-9267-11e7-98a0-7f626de5199a.gif)|Dash app code is declarative and reactive, which makes it easy to build complex apps that contain many interactive elements. Here’s an example with 5 inputs, 3 outputs, and cross filtering. This app was composed in just 160 lines of code, all of which were Python.|
-|![Dash App with Mapbox map showing walmart store openings](https://user-images.githubusercontent.com/1280389/30086299-768509d0-9268-11e7-8e6b-626ac9ca512c.gif)| Dash uses [Plotly.js](https://github.com/plotly/plotly.js) for charting. About 50 chart types are supported, including maps. |
-|![Financial report](https://user-images.githubusercontent.com/2678795/161153710-57952401-6e07-42d5-ba3e-bab6419998c7.gif)| Dash isn't just for dashboards. You have full control over the look and feel of your applications. Here's a Dash App that's styled to look like a PDF report. |
+#### Install
 
-To learn more about Dash, read the [extensive announcement letter](https://medium.com/@plotlygraphs/introducing-dash-5ecf7191b503) or [jump in with the user guide](https://plotly.com/dash).
+```
+pip install dash-flash
+```
 
-### Dash OSS & Dash Enterprise
+#### Basic app
 
-With Dash Open Source, Dash apps run on your local laptop or workstation, but cannot be easily accessed by others in your organization.
+```python
+from flash import Flash, Input, Output, callback, html
 
-Scale up with Dash Enterprise when your Dash app is ready for department or company-wide consumption. Or, launch your initiative with Dash Enterprise from the start to unlock developer productivity gains and hands-on acceleration from Plotly's team.
+app = Flash(__name__)
 
-ML Ops Features: A one-stop shop for ML Ops: Horizontally scalable hosting, deployment, and authentication for your Dash apps. No IT or DevOps required.
-- [**App manager**](https://plotly.com/dash/app-manager/) Deploy & manage Dash apps without needing IT or a DevOps team. App Manager gives you point & click control over all aspects of your Dash deployments.
-- [**Kubernetes scaling**](https://plotly.com/dash/kubernetes/) Ensure high availability of Dash apps and scale horizontally with Dash Enterprise’s Kubernetes architecture. No IT or Helm required.
-- [**No code auth**](https://plotly.com/dash/authentication/) Control Dash app access in a few clicks. Dash Enterprise supports LDAP, AD, PKI, Okta, SAML, OpenID Connect, OAuth, SSO, and simple email authentication.
-- [**Job Queue**](https://plotly.com/dash/job-queue/) The Job Queue is the key to building scalable Dash apps. Move heavy computation from synchronous Dash callbacks to the Job Queue for asynchronous background processing.
+btn = html.Button("click me", id="button")
+content = html.Div(id="output")
 
-Low-Code Features: Low-code Dash app capabilities that supercharge developer productivity.
-- [**Design Kit**](https://plotly.com/dash/design-kit/) Design like a pro without writing a line of CSS. Easily arrange, style, brand, and customize your Dash apps.
-- [**Snapshot Engine**](https://plotly.com/dash/snapshot-engine/) Save & share Dash app views as links or PDFs. Or, run a Python job through Dash and have Snapshot Engine email a report when the job is done.
-- [**Dashboard Toolkit**](https://plotly.com/dash/toolkit/) Drag & drop layouts, chart editing, and crossfilter for your Dash apps.
-- [**Embedding**](https://plotly.com/dash/embedding/) Natively embed Dash apps in an existing web application or website without the use of IFrames.
+app.layout = html.Div([btn, content])
 
-Enterprise AI Features: Everything that your data science team needs to rapidly deliver AI/ML research and business initiatives.
-- [**AI App Marketplace**](https://plotly.com/dash/ai-and-ml-templates/) Dash Enterprise ships with dozens of Dash app templates for business problems where AI/ML is having the greatest impact.
-- [**Big Data for Pything**](https://plotly.com/dash/big-data-for-python/) Connect to Python's most popular big data back ends: Dask, Databricks, NVIDIA RAPIDS, Snowflake, Postgres, Vaex, and more.
-- [**GPU & Dask Acceleration**](https://plotly.com/dash/gpu-dask-acceleration/) Dash Enterprise puts Python’s most popular HPC stack for GPU and parallel CPU computing in the hands of business users.
-- [**Data Science Workspaces**](https://plotly.com/dash/workspaces/) Be productive from Day 1. Write and execute Python, R, & Julia code from Dash Enterprise's onboard code editor.
+@callback(
+    Output(content, "children"),
+    Input(btn, "n_clicks")
+)
+async def update(clicked):
+    return "Hello World"
+```
 
-See [https://plotly.com/contact-us/](https://plotly.com/contact-us/) to get in touch.
+## Basic Callbacks
+Async callbacks don’t inherently speed up your application, but they enable **efficient** concurrency for `I/O-bound workloads`.
+If a callback performs heavy or blocking work, keep it synchronous—such tasks are executed in a dedicated thread.
+A typical use case is aggregating responses from multiple HTTP endpoints or running parallel database queries.
+```python
+from .data import get_data_1, get_data_2, get_data_3
+from .figures import create_figures
 
-![Dash Enterprise](https://user-images.githubusercontent.com/2678795/161155614-21c54a22-f821-4dda-b910-ee27e27fb5f2.png)
+from flash import Input, Output, callback
+import asyncio
+
+@callback(
+    Ouput("figure-container", "children"),
+    Input("input", "value"),
+)
+async def update(value):
+    data = await asyncio.gather(
+        get_data_1(value),
+        get_data_2(value),
+        get_data_3(value)
+    )
+
+    updated_figure = create_figures(data)
+    return updated_figures
+```
+
+## Event Callback
+Server-Sent Events (SSEs) are a server push technology that keeps an HTTP connection open, allowing servers to continuously stream updates to clients. They are typically used for sending messages, data streams, or real-time updates directly to the browser via the native JavaScript EventSource API.
+
+Event callbacks build on this principle by using async generator functions that yield updates instead of returning once. This enables:
+
+* Progressive UI updates (e.g., streaming partial results).
+* Endless streams (e.g., real-time dashboards, stock tickers, monitoring).
+
+The API mirrors Dash’s callback design, but with two key differences:
+
+1. No explicit output needed – updates are applied with stream_props.
+2. stream_props behaves like set_props, but works seamlessly with async yields.
+
+### Basic Event Callback
+
+This example (from Dash’s background callback docs) shows how a background callback is no longer necessary—eliminating the need for extra services like Celery + Redis.
+
+```python
+# data.py
+import pandas as pd
+import asyncio
+
+async def get_data(chunk_size: int):
+    df: pd.DataFrame = data.gapminder()
+    total_rows = df.shape[0]
+
+    while total_rows > 0:
+        await asyncio.sleep(2)
+        end = len(df) - total_rows + chunk_size
+        total_rows -= chunk_size
+        update_data = df[:end].to_dict("records")
+        df.drop(df.index[:end], inplace=True)
+        yield update_data, df.columns
+```
+
+A more realistic use case would be streaming query results with *SQLAlchemy async*:
+
+```python
+# data.py
+from sqlalchemy.ext.asyncio import AsyncConnection
+
+async def get_data(connection: AsyncConnection):
+    result = await connection.stream(select(users_table))
+
+    async for partition in result.partitions(100):
+        print("list of rows: %s" % partition)
+        return partition
+
+```
+Hooking it into your app with `event_callback`:
+```python
+#app.py
+from flash import Input, event_callback, stream_props
+
+@event_callback(Input("start-stream-button", "n_clicks"))
+async def update_table(_):
+
+    yield stream_props("start-stream-button", {"loading": True})
+    yield stream_props("cancel-stream-button", {"display": "flex"})
+
+    progress = 0
+    chunk_size = 500
+    async for data_chunk, colnames in get_data(chunk_size):
+        if progress == 0:
+            columnDefs = [{"field": col} for col in colnames]
+            update = {"rowData": data_chunk, "columnDefs": columnDefs}
+        else:
+            update = {"rowTransaction": {"add": data_chunk}}
+
+        yield stream_props("dash-ag-grid", update)
+
+        if len(data_chunk) == chunk_size:
+            yield stream_props(
+                "notification",
+                {
+                    "title"="Progress",
+                    "message"=f"Processed {chunk_size + (chunk_size * progress)} items",
+                    "color"="violet",
+                }
+            )
+
+        progress += 1
+
+    yield stream_props("start-stream-button", {"loading": False, "children": "Reload"})
+    yield stream_props("reset-strea-button", {"display": "none"})
+```
+
+### Endless Event Callback
+Event callbacks are lightweight and stateless, making them ideal for continuous real-time streams:
+
+```python
+from .data import get_latest_stock_data
+from flash import Input, event_callback, stream_props
+
+@callback(Input("start-stream-button", "n_clicks"))
+async def stream_stock_data(_):
+    while True:
+        x, s1, s2 = await get_latest_stock_data()
+        update = [dict(x=[[x], [x]], y=[[y1], [y2]]), [0, 1], 100]
+
+    yield stream_props("stock-graph", {"extendData": update})
+```
+
+## Cancel streams
+
+- Configure `cancel=[(Input, desired_state), ...]` on `@event_callback` to close the active SSE stream when a condition is met (e.g., Reset click, tab change, starting a new run).
+- Proper canceling prevents stale EventSource connections from pushing late updates, reduces network chatter, and avoids extra rendering work in the browser.
+- On cancel, Flash clears the SSE event store, marks the SSE component as done (URL set to null), and applies any `reset_props` so the UI returns to a clean, predictable state.
+- Common triggers: reset/cancel buttons, page or tab changes, or beginning a new run that invalidates the previous stream.
+
+```python
+@event_callback(
+    ...,
+    cancel=[
+        (Input("tabs", "value"), "other-tab-value")
+    ]
+)
+```
+
+## Handle error
+
+- `on_error` is a callable that receives the raised error (e.g., `def on_error(e): ...`). Use it to emit a final user-facing message and perform cleanup when the stream fails.
+- Typical cleanup: unsubscribe from a stream topic, close file/DB handles, revoke a background task token, or write telemetry.
+- Flash also emits an SSE error signal so the client can coordinate default error UI and cleanup. Combine with `reset_props` to leave the interface in a known-good state.
+
+## Reset props
+
+- Configure `reset_props={ component_id: {prop: value, ...}, ... }` on `@event_callback` to restore the UI after cancel or error.
+- Use it to re-enable start buttons, hide cancel controls, clear progress text/spinners, and restore placeholders.
+- These updates are applied automatically when a stream is canceled or errors, alongside closing the SSE connection and clearing transient state.
