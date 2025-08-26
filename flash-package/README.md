@@ -21,6 +21,7 @@ Build reactive dashboards that don’t just update—they stream.
 - [Getting started](#getting-started)
 - [Basic callbacks](#basic-callbacks)
 - [Event callback](#event-callback)
+    - [Stream Props](#stream-props)
     - [Basic Stream](#basic-event-callback)
     - [Endless Stream](#endless-event-callback)
     - [Cancel streams](#cancel-streams)
