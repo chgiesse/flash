@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="flash-logo.png" alt="logo" width=300 >
+    <img src="dash-flash/flash-logo.png" alt="logo" width=300 >
 </p>
 <p align="center">
     <img src="https://badgen.net/pypi/license/dash-flash">
