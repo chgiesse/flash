@@ -100,7 +100,7 @@ async def update(value):
 ## Event Callback
 Server-Sent Events (SSEs) are a server push technology that keeps an HTTP connection open, allowing servers to continuously stream updates to clients. They are typically used for sending messages, data streams, or real-time updates directly to the browser via the native JavaScript EventSource API.
 
-Event callbacks build on this principle by using async generator functions that yield updates instead of returning once. This enables:
+fvent callbacks build on this principle by using async generator functions that yield updates instead of returning once. This enables:
 
 * Progressive UI updates (e.g., streaming partial results).
 * Endless streams (e.g., real-time dashboards, stock tickers, monitoring).
@@ -108,7 +108,25 @@ Event callbacks build on this principle by using async generator functions that 
 The API mirrors Dash’s callback design, but with two key differences:
 
 1. No explicit output needed – updates are applied with stream_props.
-2. stream_props behaves like set_props, but works seamlessly with async yields.
+2. `stream_props` behaves like set_props, needs to be yield.
+
+### Stream Props
+The stream_props function allows you to send UI updates on the fly and follows the set_props API by Dash, while enhancing it with batch updates which reduces network overhead and quicker UI updates. The function can be used as follows:
+
+```python
+# Single updates
+yield stream_props(component_id="cid", props={"children": "Hello Stream"})
+yield stream_props("cid", {"children": "Hello Stream"})
+# Batch updates
+yield stream_props(batch=[
+    ("cid", {"children": "Hello Stream"}),
+    ("btn", {"disablesd": True}),
+])
+yield stream_props([
+    ("cid", {"children": "Hello Stream"}),
+    ("btn", {"disablesd": True}),
+])
+```
 
 ### Basic Event Callback
 
@@ -154,8 +172,10 @@ from flash import Input, event_callback, stream_props
 @event_callback(Input("start-stream-button", "n_clicks"))
 async def update_table(_):
 
-    yield stream_props("start-stream-button", {"loading": True})
-    yield stream_props("cancel-stream-button", {"display": "flex"})
+    yield stream_props([
+        ("start-stream-button", {"loading": True}),
+        ("cancel-stream-button", {"display": "flex"})
+    ])
 
     progress = 0
     chunk_size = 500
@@ -169,13 +189,10 @@ async def update_table(_):
         yield stream_props("dash-ag-grid", update)
 
         if len(data_chunk) == chunk_size:
-            yield stream_props(
-                "notification",
-                {
-                    "title"="Progress",
-                    "message"=f"Processed {chunk_size + (chunk_size * progress)} items",
-                    "color"="violet",
-                }
+            yield NotificationsContainer.send_notification(
+                title="Starting stream!",
+                message="Notifications in Dash, Awesome!",
+                color="lime",
             )
 
         progress += 1
@@ -195,23 +212,24 @@ from flash import Input, event_callback, stream_props
 async def stream_stock_data(_):
     while True:
         x, s1, s2 = await get_latest_stock_data()
-        update = [dict(x=[[x], [x]], y=[[y1], [y2]]), [0, 1], 100]
+        update = [dict(x=[[x], [x]], y=[[s1], [s2]]), [0, 1], 100]
 
     yield stream_props("stock-graph", {"extendData": update})
 ```
 
 ## Cancel streams
 
-- Configure `cancel=[(Input, desired_state), ...]` on `@event_callback` to close the active SSE stream when a condition is met (e.g., Reset click, tab change, starting a new run).
+- Configure `cancel=[(Input("id", "value"), desired_state), ...]` on `@event_callback` to close the active SSE stream when a condition is *NOT* met. Lets consider a layout with three tabs and the stream runs in tab *dashboard* and you want that the stream only runs when that tab is open, you can set `(Input("tabs", "value"), "dashboard")`
 - Proper canceling prevents stale EventSource connections from pushing late updates, reduces network chatter, and avoids extra rendering work in the browser.
-- On cancel, Flash clears the SSE event store, marks the SSE component as done (URL set to null), and applies any `reset_props` so the UI returns to a clean, predictable state.
+- On cancel, marks the SSE as done and applies any `reset_props` so the UI returns to a clean, predictable state.
 - Common triggers: reset/cancel buttons, page or tab changes, or beginning a new run that invalidates the previous stream.
 
 ```python
 @event_callback(
     ...,
     cancel=[
-        (Input("tabs", "value"), "other-tab-value")
+        (Input("tabs", "value"), "dashboard"),
+        (Input("c-btn", "n_clicks"), 0)
     ]
 )
 ```
@@ -224,6 +242,6 @@ async def stream_stock_data(_):
 
 ## Reset props
 
-- Configure `reset_props={ component_id: {prop: value, ...}, ... }` on `@event_callback` to restore the UI after cancel or error.
+- Configure `reset_props=[(component_id, {prop: value, ...}), ...]` on `@event_callback` to restore the UI after cancel or error.
 - Use it to re-enable start buttons, hide cancel controls, clear progress text/spinners, and restore placeholders.
 - These updates are applied automatically when a stream is canceled or errors, alongside closing the SSE connection and clearing transient state.
