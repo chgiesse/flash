@@ -3,7 +3,7 @@ from ._utils import recursive_to_plotly_json
 from ._callback import clientside_callback
 from .SSE import SSE
 from dataclasses import dataclass
-from dash import html, State, Input, Output, MATCH
+from dash import html, State
 from dash.dependencies import DashDependency
 from dash.dcc import Store
 import typing as _t
@@ -17,11 +17,13 @@ STEAM_SEPERATOR: _t.Final[str] = "__concatsep__"
 SSE_CALLBACK_ID_KEY: _t.Final[str] = "sse_callback_id"
 
 ERROR_TOKEN: _t.Final = "[ERROR]"
-INIT_TOKEN: _t.Final = "[INIT]"
-DONE_TOKEN: _t.Final = "[DONE]"
-RUNNING_TOKEN: _t.Final = "[RUNNING]"
+SINGLE_UPDATE_TOKEN: _t.Final = "[SINGLE]"
+BATCH_UPDATE_TOKEN: _t.Final = "[BATCH]"
 
-signal_type = _t.Literal["[ERROR]", "[INIT]", "[DONE]", "[RUNNING]"]
+signal_type: _t.TypeAlias = _t.Literal["[ERROR]", "[SINGLE]", "[BATCH]"]
+batch_props_type: _t.TypeAlias = _t.List[
+    _t.Tuple[str | _t.Dict[str, _t.Any], _t.Dict[str, _t.Any]]
+]
 
 
 def get_callback_id(callback_id: str):
@@ -69,7 +71,7 @@ class ServerSentEvent:
 class _SSEServerObject:
     func: _t.Callable
     on_error: _t.Optional[_t.Callable]
-    reset_props: _t.Dict
+    reset_props: batch_props_type
 
     @property
     def func_name(self):
@@ -96,7 +98,7 @@ class _SSEServerObjects:
 def generate_reset_callback_function(
     callback_id: str,
     close_on: _t.List[_t.Tuple[DashDependency, _t.Any]],
-    reset_props: _t.Dict = {},
+    reset_props: batch_props_type,
 ) -> str:
     """Generate a clientside callback function to reset SSE connection based on close_on conditions."""
 
@@ -108,46 +110,53 @@ def generate_reset_callback_function(
     sse_id_obj = json.dumps(sse_id)
 
     # Create the close_on conditions check
+    # Note: the last dependency in `close_on` is the SSE url, which is passed as `sseUrl` param
     close_conditions = []
-    for i, (dependency, desired_state) in enumerate(close_on):
+    last_index = len(close_on) - 1
+    for i, (_dependency, desired_state) in enumerate(close_on):
+        var_name = "sseUrl" if i == last_index else f"value{i}"
         if isinstance(desired_state, str):
-            condition = f'value{i} === "{desired_state}"'
+            condition = f"{var_name} !== {json.dumps(desired_state)}"
         elif isinstance(desired_state, bool):
-            condition = f"value{i} === {str(desired_state).lower()}"
+            condition = f"{var_name} !== {str(desired_state).lower()}"
         elif isinstance(desired_state, (int, float)):
-            condition = f"value{i} === {desired_state}"
+            condition = f"{var_name} !== {desired_state}"
         elif desired_state is None:
-            condition = f"value{i} === null"
+            condition = f"{var_name} !== null"
         else:
-            condition = f"value{i} === {json.dumps(desired_state)}"
+            condition = f"{var_name} !== {json.dumps(desired_state)}"
         close_conditions.append(condition)
 
     # Create the reset_props assignments
     reset_props_assignments = []
-    for component_id, props in reset_props.items():
+    for component_id, props in reset_props:
+        comp_id_str = json.dumps(component_id)
         if isinstance(props, dict):
             props_str = json.dumps(props)
-            reset_props_assignments.append(f'setProps("{component_id}", {props_str});')
+            reset_props_assignments.append(f"setProps({comp_id_str}, {props_str});")
         else:
             reset_props_assignments.append(
-                f'setProps("{component_id}", {{value: {json.dumps(props)}}});'
+                f"setProps({comp_id_str}, {{value: {json.dumps(props)}}});"
             )
 
     reset_props_code = "\n                ".join(reset_props_assignments)
 
     # Create the function parameters
-    param_names = [f"value{i}" for i in range(len(close_on[:-1]))]
+    param_names = [f"value{i}" for i in range(max(len(close_on) - 1, 0))]
     args_str = ", ".join(param_names)
+    # Build function parameters list, ensuring valid JS when there are no non-SSE args
+    params_list = f"{args_str}, sseUrl" if args_str else "sseUrl"
 
     # Create the condition check
     condition_check = " && ".join(close_conditions)
+
     js_code = f"""
-        function({args_str}, sseUrl) {{
+        function({params_list}) {{
             if ( !sseUrl ) {{
                 return window.dash_clientside.no_update;
             }}
 
-            if (!{condition_check}) {{
+            if ({condition_check}) {{
                 return window.dash_clientside.no_update;
             }}
 
@@ -213,10 +222,76 @@ def generate_deterministic_id(func: _t.Callable, dependencies: _t.Tuple) -> str:
     return hashlib.sha256(unique_string.encode("utf-8")).hexdigest()
 
 
-def stream_props(component_id: str | _t.Dict, props: _t.Dict):
-    """Generate notification props for the specified component ID."""
-    response = [RUNNING_TOKEN, component_id, recursive_to_plotly_json(props)]
-    # event = ServerSentEvent(json.dumps(response) + STEAM_SEPERATOR)
+@_t.overload
+def stream_props(
+    component_id: str | dict[str, _t.Any], props: dict[str, _t.Any], /
+) -> bytes:
+    ...
+
+
+@_t.overload
+def stream_props(
+    batch: list[tuple[str | dict[str, _t.Any], dict[str, _t.Any]]], /
+) -> bytes:
+    ...
+
+
+@_t.overload
+def stream_props(
+    *, batch: list[tuple[str | dict[str, _t.Any], dict[str, _t.Any]]]
+) -> bytes:
+    ...
+
+
+def stream_props(
+    arg1: str
+    | dict[str, _t.Any]
+    | list[tuple[str | dict[str, _t.Any], dict[str, _t.Any]]]
+    | None = None,
+    props: dict[str, _t.Any] | None = None,
+    /,
+    *,
+    batch: list[tuple[str | dict[str, _t.Any], dict[str, _t.Any]]] | None = None,
+) -> bytes:
+    """
+    Create an SSE message to update one or many components.
+
+    Forms:
+    >>> stream_props("my-id", {"value": 42})
+    >>> stream_props([("id1", {"a": 1}), ("id2", {"b": 2})])
+    >>> stream_props(batch=[("id1", {"a": 1}), ("id2", {"b": 2})])
+    """
+
+    if batch is not None:
+        response = [
+            BATCH_UPDATE_TOKEN,
+            None,
+            [(cid, recursive_to_plotly_json(p)) for cid, p in batch],
+        ]
+
+    elif props is None:
+        if not isinstance(arg1, list):
+            raise TypeError(
+                "Batch form requires a list of (component_id, props) tuples."
+            )
+
+        response = [
+            BATCH_UPDATE_TOKEN,
+            None,
+            [(cid, recursive_to_plotly_json(p)) for cid, p in arg1],
+        ]
+
+    else:
+        if arg1 is None or isinstance(arg1, list):
+            raise TypeError("Single form requires component_id and props.")
+
+        component_id = arg1
+        response = [
+            SINGLE_UPDATE_TOKEN,
+            component_id,
+            recursive_to_plotly_json(props),
+        ]
+
     event = ServerSentEvent(json.dumps(response))
     return event.encode()
 
@@ -225,7 +300,7 @@ def event_callback(
     *dependencies,
     on_error: _t.Optional[_t.Callable] = None,
     cancel: _t.Optional[_t.List[_t.Tuple[DashDependency, _t.Any]]] = None,
-    reset_props: _t.Dict = {},
+    reset_props: batch_props_type = [],
     prevent_initial_call=True,
     concat: bool = True,
 ):

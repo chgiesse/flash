@@ -82,14 +82,10 @@ from ._pages import (
 from ._event_callback import (
     SSE_CALLBACK_ENDPOINT,
     SSE_CALLBACK_ID_KEY,
-    STEAM_SEPERATOR,
-    INIT_TOKEN,
     ERROR_TOKEN,
-    DONE_TOKEN,
     ServerSentEvent,
     _SSEServerObjects,
     get_callback_id,
-    signal_type,
 )
 from dash._jupyter import jupyter_dash
 from dash.types import RendererHooks
@@ -1150,7 +1146,7 @@ class Flash(ObsoleteChecker):
         )
 
         for hook in self._hooks.get_hooks("index"):
-            index = await hook(index)
+            index = hook(index)
 
         checks = (
             _re_index_entry_id,
@@ -2415,11 +2411,9 @@ class Flash(ObsoleteChecker):
     def setup_sse_endpoint(self):
         @self.server.post(SSE_CALLBACK_ENDPOINT)
         async def sse_callback_endpoint():
-            print("Received SSE callback request")
-
             if "text/event-stream" not in quart.request.accept_mimetypes:
-                print("ABORTING: No text/event-stream in request accept header")
                 quart.abort(400)
+
             data = await quart.request.get_json()
             content = data["content"].copy()
             ctx = content.pop("callback_context", {})
@@ -2428,26 +2422,24 @@ class Flash(ObsoleteChecker):
             if not callback_id:
                 raise ValueError("callback_id is required")
 
-            def send_signal(signal: signal_type, payload: Dict = {}):
-                response = [signal, None, payload]
-                event = ServerSentEvent(json.dumps(response) + STEAM_SEPERATOR)
+            def send_signal(payload: Dict = {}):
+                response = [ERROR_TOKEN, None, payload]
+                event = ServerSentEvent(json.dumps(response))
                 return event.encode()
 
             @quart.stream_with_context
             async def callback_generator():
-                yield send_signal(INIT_TOKEN)
                 sse_obj = _SSEServerObjects.get_func(callback_id)
 
                 if not sse_obj:
                     error_message = f"Could not find function for sse id {callback_id}"
-                    yield send_signal(ERROR_TOKEN, {"error": error_message})
+                    yield send_signal({"error": error_message})
                     return
 
-                callback_func = sse_obj.func
                 on_error = sse_obj.on_error
 
                 try:
-                    async for item in callback_func(**content):
+                    async for item in sse_obj.func(**content):
                         if item is None:
                             warnings.warn(
                                 f"Callback generator functions should not return None values - Callback: {sse_obj.func_name} | {callback_id}"
@@ -2455,8 +2447,7 @@ class Flash(ObsoleteChecker):
                             continue
 
                         yield item
-                        time.sleep(0.2)
-                    yield send_signal(DONE_TOKEN)
+                        await asyncio.sleep(0.1)
 
                 except Exception as e:
                     handle_error = True
@@ -2465,7 +2456,6 @@ class Flash(ObsoleteChecker):
                         yield on_error(e)
 
                     yield send_signal(
-                        ERROR_TOKEN,
                         {
                             "error": str(e),
                             "handle_error": handle_error,

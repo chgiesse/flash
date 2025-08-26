@@ -41,19 +41,50 @@ const SSE = ({
         sse.close();
         return;
       }
-      // Update value.
-      // setData((prev) => (concat ? prev.concat(e.data) : e.data));
       // If update_component is set, try to parse and update Dash component
       const dashSetProps = window.dash_clientside?.set_props;
       if (update_component && dashSetProps) {
         try {
-          // Expecting SSE message to be a JSON array: [_, componentId, props] or [componentId, props]
           const msg = JSON.parse(e.data);
           if (Array.isArray(msg)) {
-            // If 3 elements, ignore the first (status); if 2, use both
-            const componentId = msg.length === 3 ? msg[1] : msg[0];
-            const props = msg.length === 3 ? msg[2] : msg[1];
-            dashSetProps(componentId, props);
+            const [stream_type, componentId, props] = msg
+
+            switch (stream_type) {
+              case '[ERROR]':
+                if (props.handle_error) {
+                  window.alert(`Error from SSE stream: ${props.error}`);
+                }
+
+                if (props.reset_props) {
+                  props.reset_props.forEach((item: any) => {
+                    if (Array.isArray(item) && item.length === 2) {
+                      const [compId, compProps] = item;
+                      dashSetProps(compId, compProps);
+                    }
+                  });
+                }
+                sse.close()
+                break;
+
+              case '[SINGLE]':
+                dashSetProps(componentId, props);
+                break;
+
+              case '[BATCH]':
+                // For batch, we expect props to be a list of list of [componentId, props]
+                if (Array.isArray(props)) {
+                  props.forEach((item: any) => {
+                    if (Array.isArray(item) && item.length === 2) {
+                      const [compId, compProps] = item;
+                      dashSetProps(compId, compProps);
+                    }
+                  });
+                }
+                break;
+
+              default:
+                console.warn('Unknown stream type:', stream_type);
+            }
           }
         } catch (err) {
           // Not a JSON message, ignore
@@ -62,7 +93,7 @@ const SSE = ({
       }
     };
     sse.onerror = (e: Event) => {
-      console.log('ERROR', e);
+      console.log('Unhandled SSE ERROR', e);
       sse.close();
     };
     // Close on unmount.

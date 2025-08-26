@@ -37,7 +37,7 @@ export type Props = DashComponentProps & {
  */
 const SSE = (props: Props) => {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<></>}>
       <LazySSE {...props} />
     </Suspense>
   );

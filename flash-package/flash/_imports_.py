@@ -1,4 +1,3 @@
-from .SSE import SSE
 from dash import html
 from dash._get_paths import (  # noqa: F401,E402
     get_asset_url,
@@ -31,7 +30,6 @@ from .flash import Flash, no_update, page_container
 
 ctx = callback_context
 __all__ = [
-    "SSE",
     "get_asset_url",
     "get_relative_path",
     "strip_relative_path",
