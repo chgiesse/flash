@@ -2409,7 +2409,8 @@ class Flash(ObsoleteChecker):
             )
 
     def setup_sse_endpoint(self):
-        @self.server.post(SSE_CALLBACK_ENDPOINT)
+        sse_url = self.get_relative_path(SSE_CALLBACK_ENDPOINT)
+        @self.server.post(sse_url)
         async def sse_callback_endpoint():
             if "text/event-stream" not in quart.request.accept_mimetypes:
                 quart.abort(400)

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from dash import html, State
 from dash.dependencies import DashDependency
 from dash.dcc import Store
+from dash._get_paths import get_relative_path
 import typing as _t
 import json
 import inspect
@@ -171,7 +172,7 @@ def generate_reset_callback_function(
     return js_code
 
 
-def generate_clientside_callback(input_ids, sse_callback_id, prevent_initial_call):
+def generate_clientside_callback(input_ids, sse_callback_id, prevent_initial_call, sse_url):
     args_str = ", ".join(input_ids)
     start = "false" if prevent_initial_call else "true"
     sse_id_obj = SSECallbackComponent.ids.sse(sse_callback_id)
@@ -204,7 +205,7 @@ def generate_clientside_callback(input_ids, sse_callback_id, prevent_initial_cal
                 {str_sse_id},
                 {{
                     options: sse_options,
-                    url: "{SSE_CALLBACK_ENDPOINT}",
+                    url: "{sse_url}",
                 }}
             );
         }}
@@ -315,28 +316,24 @@ def event_callback(
         sse_obj = _SSEServerObject(func, on_error, reset_props)
         _SSEServerObjects.add_func(sse_obj, callback_id)
 
-        clientside_function = generate_clientside_callback(
-            param_names, callback_id, prevent_initial_call
-        )
-        clientside_callback(
-            clientside_function,
-            *dependencies,
-            prevent_initial_call=prevent_initial_call,
-        )
-
-        @hooks.layout()
-        def add_sse_component(layout):
-            component = SSECallbackComponent(callback_id, concat)
-            return (
-                [component] + layout
-                if isinstance(layout, list)
-                else [component, layout]
+        @hooks.setup()
+        def register_cscs(app):
+            sse_url = app.get_relative_path(SSE_CALLBACK_ENDPOINT)
+            clientside_function = generate_clientside_callback(
+                param_names, callback_id, prevent_initial_call, sse_url
+            )
+            clientside_callback(
+                clientside_function,
+                *dependencies,
+                prevent_initial_call=prevent_initial_call,
             )
 
-        if cancel:
+            if not cancel:
+                return app
+
             sse_state = (
                 State(SSECallbackComponent.ids.sse(callback_id), "url"),
-                SSE_CALLBACK_ENDPOINT,
+                sse_url,
             )
             cancel_w_sse = cancel + [sse_state]
             reset_callback_function = generate_reset_callback_function(
@@ -349,6 +346,18 @@ def event_callback(
                     *reset_dependencies,
                     prevent_initial_call=True,
                 )
+
+            return app
+
+        @hooks.layout()
+        def add_sse_component(layout):
+            component = SSECallbackComponent(callback_id, concat)
+            return (
+                [component] + layout
+                if isinstance(layout, list)
+                else [component, layout]
+            )
+
 
         return func
 
