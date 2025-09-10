@@ -123,6 +123,71 @@ _default_index = """<!DOCTYPE html>
     </body>
 </html>"""
 
+_custom_default_index = """<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            /* Initial paint fallback (before JS runs) */
+            html { background:#FFF; }
+            @media (prefers-color-scheme: dark) { html { background:#0e1014; } }
+            html[data-mantine-color-scheme="dark"]  { background:#0e1014; }
+            html[data-mantine-color-scheme="light"] { background:#FFF; }
+            html.no-theme-transitions, html.no-theme-transitions * { transition:none !important; }
+        </style>
+        <script>
+        /*! Early theme apply: sets data-mantine-color-scheme before CSS to avoid FOUC */
+        (function() {
+            try {
+                var STORE_KEY = 'color-theme-store';
+                var raw = localStorage.getItem(STORE_KEY);
+                var isDark;
+                if (raw) {
+                    try {
+                         = raw;
+                        if (typeof parsed === 'boolean') {
+                            isDark = parsed;
+                        } else if (parsed && typeof parsed === 'object' && typeof parsed.theme === 'string') {
+                            isDark = parsed.theme === 'dark';
+                        }
+                    } catch(e) { /* ignore parse errors */ }
+                }
+                if (typeof isDark === 'undefined') {
+                    isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                }
+                var scheme = isDark ? 'dark' : 'light';
+                console.log('Early theme apply, scheme:', scheme, 'isDark:', isDark);
+                var de = document.documentElement;
+                de.setAttribute('data-mantine-color-scheme', scheme);
+                de.style.backgroundColor = isDark ? '#0e1014' : '#FFFFFF';
+                // Ensure UA widgets (forms, etc.) pick correct scheme
+                var meta = document.querySelector('meta[name="color-scheme"]');
+                if (!meta) { meta = document.createElement('meta'); meta.name = 'color-scheme'; document.head.prepend(meta); }
+                meta.content = scheme;
+                de.classList.add('no-theme-transitions');
+                window.addEventListener('DOMContentLoaded', function() {
+                    requestAnimationFrame(function(){ de.classList.remove('no-theme-transitions'); });
+                });
+            } catch(e) { /* silent */ }
+        })();
+        </script>
+        {%metas%}
+        <title>{%title%}</title>
+        {%favicon%}
+        {%css%}
+    </head>
+    <body>
+        <!--[if IE]><script>
+        alert("Dash v2.7+ does not support Internet Explorer. Please use a newer browser.");
+        </script><![endif]-->
+        {%app_entry%}
+        <footer>
+            {%config%}
+            {%scripts%}
+            {%renderer%}
+        </footer>
+    </body>
+</html>"""
+
 _app_entry = """
 <div id="react-entry-point">
     <div class="_dash-loading">
@@ -450,6 +515,9 @@ class Flash(ObsoleteChecker):
         on_error: Optional[Callable[[Exception], Any]] = None,
         **obsolete,
     ):
+        router = obsolete.pop("router", None)
+        handle_theme = obsolete.pop("handle_theme", None)
+
         _validate.check_obsolete(obsolete)
 
         caller_name = None if name else get_caller_name()
@@ -540,6 +608,8 @@ class Flash(ObsoleteChecker):
         self._inline_scripts = []
 
         # index_string has special setter so can't go in config
+        if handle_theme is not None:
+            index_string = _custom_default_index
         self._index_string = ""
         self.index_string = index_string
         self._favicon = None
@@ -592,6 +662,7 @@ class Flash(ObsoleteChecker):
             for plugin in plugins:
                 plugin.plug(self)
 
+        router(self) if router else None
         self._setup_hooks()
 
         # tracks internally if a function already handled at least one request.
@@ -2409,7 +2480,8 @@ class Flash(ObsoleteChecker):
             )
 
     def setup_sse_endpoint(self):
-        sse_url = self.get_relative_path(SSE_CALLBACK_ENDPOINT)
+        prefix = self.config.routes_pathname_prefix.rstrip("/")
+        sse_url = f"{prefix}{SSE_CALLBACK_ENDPOINT}"
         @self.server.post(sse_url)
         async def sse_callback_endpoint():
             if "text/event-stream" not in quart.request.accept_mimetypes:

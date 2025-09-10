@@ -314,23 +314,19 @@ def event_callback(
         callback_id = generate_deterministic_id(func, dependencies)
 
         sse_obj = _SSEServerObject(func, on_error, reset_props)
+        sse_url = get_relative_path(SSE_CALLBACK_ENDPOINT)
         _SSEServerObjects.add_func(sse_obj, callback_id)
 
-        @hooks.setup()
-        def register_cscs(app):
-            sse_url = app.get_relative_path(SSE_CALLBACK_ENDPOINT)
-            clientside_function = generate_clientside_callback(
-                param_names, callback_id, prevent_initial_call, sse_url
-            )
-            clientside_callback(
-                clientside_function,
-                *dependencies,
-                prevent_initial_call=prevent_initial_call,
-            )
+        clientside_function = generate_clientside_callback(
+            param_names, callback_id, prevent_initial_call, sse_url
+        )
+        clientside_callback(
+            clientside_function,
+            *dependencies,
+            prevent_initial_call=prevent_initial_call,
+        )
 
-            if not cancel:
-                return app
-
+        if cancel:
             sse_state = (
                 State(SSECallbackComponent.ids.sse(callback_id), "url"),
                 sse_url,
@@ -347,7 +343,6 @@ def event_callback(
                     prevent_initial_call=True,
                 )
 
-            return app
 
         @hooks.layout()
         def add_sse_component(layout):
