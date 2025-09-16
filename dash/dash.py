@@ -529,6 +529,7 @@ class Dash(ObsoleteChecker):
             backend_cls, request_cls = get_backend(inferred_backend)
             if name is None:
                 caller_name = getattr(server, "name", caller_name)
+
             self.backend = backend_cls(server)
             self.server = server
             backends.backend = self.backend  # type: ignore

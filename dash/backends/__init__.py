@@ -1,6 +1,6 @@
 from .base_server import BaseDashServer, RequestAdapter
 
-from typing import Literal
+from typing import Literal, Any
 import importlib
 
 
@@ -15,7 +15,9 @@ _backend_imports = {
 }
 
 
-def get_backend(name: Literal["flask", "fastapi", "quart"]):
+def get_backend(
+    name: Literal["flask", "fastapi", "quart"] | str
+) -> tuple[BaseDashServer, RequestAdapter]:
     module_name, server_class, request_class = _backend_imports[name.lower()]
     try:
         module = importlib.import_module(module_name)
