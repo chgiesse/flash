@@ -37,7 +37,7 @@ class QuartDashServer(BaseDashServer):
         self.error_handling_mode = "prune"
         super().__init__()
 
-    def __call__(self, *args, **kwargs):  # type: ignore[name-defined]
+    def __call__(self, *args: Any, **kwargs: Any):  # type: ignore[name-defined]
         return self.server(*args, **kwargs)
 
     @staticmethod
@@ -184,7 +184,7 @@ class QuartDashServer(BaseDashServer):
             tb = self._get_traceback(secret, error)
             return Response(tb, status=500, content_type="text/html")
 
-    def register_timing_hooks(self, _first_run):  # type: ignore[name-defined] parity with Flask factory
+    def register_timing_hooks(self, _first_run: bool):  # type: ignore[name-defined] parity with Flask factory
         @self.server.before_request
         async def _before_request():  # pragma: no cover - timing infra
             if g is not None:

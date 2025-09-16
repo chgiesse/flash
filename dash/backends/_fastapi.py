@@ -91,7 +91,7 @@ class FastAPIDashServer(BaseDashServer):
         self.error_handling_mode = "prune"
         super().__init__()
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: Any, **kwargs: Any):
         # ASGI: (scope, receive, send)
         if len(args) == 3 and isinstance(args[0], dict) and "type" in args[0]:
             return self.server(*args, **kwargs)
@@ -238,7 +238,7 @@ class FastAPIDashServer(BaseDashServer):
         else:
             self.error_handling_mode = "raise"
 
-    def _html_response_wrapper(self, view_func):
+    def _html_response_wrapper(self, view_func: Callable[..., Any] | str):
         async def wrapped(*_args, **_kwargs):
             # If view_func is a function, call it; if it's a string, use it directly
             html = view_func() if callable(view_func) else view_func
@@ -287,11 +287,11 @@ class FastAPIDashServer(BaseDashServer):
             include_in_schema=include_in_schema,
         )
 
-    def before_request(self, func):
+    def before_request(self, func: Callable[[], Any] | None):
         # FastAPI does not have before_request, but we can use middleware
         self.server.middleware("http")(self._make_before_middleware(func))
 
-    def after_request(self, func):
+    def after_request(self, func: Callable[[], Any] | None):
         # FastAPI does not have after_request, but we can use middleware
         self.server.middleware("http")(self._make_after_middleware(func))
 
@@ -321,7 +321,12 @@ class FastAPIDashServer(BaseDashServer):
         else:
             uvicorn.run(self.server, host=host, port=port, **kwargs)
 
-    def make_response(self, data, mimetype=None, content_type=None):
+    def make_response(
+        self,
+        data: str | bytes | bytearray,
+        mimetype: str | None = None,
+        content_type: str | None = None,
+    ):
         headers = {}
         if mimetype:
             headers["content-type"] = mimetype
@@ -329,10 +334,10 @@ class FastAPIDashServer(BaseDashServer):
             headers["content-type"] = content_type
         return Response(content=data, headers=headers)
 
-    def jsonify(self, obj):
+    def jsonify(self, obj: Any):
         return JSONResponse(content=obj)
 
-    def _make_before_middleware(self, func):
+    def _make_before_middleware(self, func: Callable[[], Any] | None):
         async def middleware(request, call_next):
             try:
                 response = await call_next(request)
@@ -352,7 +357,7 @@ class FastAPIDashServer(BaseDashServer):
 
         return middleware
 
-    def _make_after_middleware(self, func):
+    def _make_after_middleware(self, func: Callable[[], Any] | None):
         async def middleware(request, call_next):
             response = await call_next(request)
             if func is not None:

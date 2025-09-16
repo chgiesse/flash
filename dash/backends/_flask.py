@@ -114,7 +114,13 @@ class FlaskDashServer(BaseDashServer):
                 tb = self._get_traceback(secret, error)
                 return tb, 500
 
-    def add_url_rule(self, rule, view_func, endpoint=None, methods=None):
+    def add_url_rule(
+        self,
+        rule: str,
+        view_func: Callable[..., Any],
+        endpoint: str | None = None,
+        methods: list[str] | None = None,
+    ):
         self.server.add_url_rule(
             rule, view_func=view_func, endpoint=endpoint, methods=methods or ["GET"]
         )
