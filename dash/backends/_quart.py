@@ -6,7 +6,7 @@ import mimetypes
 import sys
 import time
 from contextvars import copy_context
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING, Callable, Dict
 
 # Attempt top-level Quart imports; allow absence if user not using quart backend
 from quart import (
@@ -35,11 +35,11 @@ class QuartDashServer(BaseDashServer):
         self.config = {}
         super().__init__()
 
-    def __call__(self, *args, **kwargs):  # type: ignore[name-defined]
+    def __call__(self, *args: Any, **kwargs: Any):  # type: ignore[name-defined]
         return self.server(*args, **kwargs)
 
     @staticmethod
-    def create_app(name="__main__", config=None):
+    def create_app(name: str = "__main__", config: Dict[str, Any] | None = None):
         if Quart is None:
             raise RuntimeError(
                 "Quart is not installed. Install with 'pip install quart' to use the quart backend."
@@ -51,7 +51,10 @@ class QuartDashServer(BaseDashServer):
         return app
 
     def register_assets_blueprint(
-        self, blueprint_name, assets_url_path, assets_folder  # type: ignore[name-defined]
+        self,
+        blueprint_name: str,
+        assets_url_path: str,
+        assets_folder: str,  # type: ignore[name-defined]
     ):
         if Blueprint is None:
             raise RuntimeError(
@@ -65,13 +68,15 @@ class QuartDashServer(BaseDashServer):
         )
         self.server.register_blueprint(bp)
 
-    def register_prune_error_handler(self, secret, get_traceback_func):  # type: ignore[name-defined]
+    def register_prune_error_handler(
+        self, secret: str, get_traceback_func: Callable[[str, BaseException], str]
+    ):  # type: ignore[name-defined]
         @self.server.errorhandler(Exception)
         async def _wrap_errors(error):
             tb = get_traceback_func(secret, error)
             return tb, 500
 
-    def register_timing_hooks(self, _first_run):  # type: ignore[name-defined] parity with Flask factory
+    def register_timing_hooks(self, _first_run: bool):  # type: ignore[name-defined] parity with Flask factory
         @self.server.before_request
         async def _before_request():  # pragma: no cover - timing infra
             if g is not None:
@@ -111,7 +116,7 @@ class QuartDashServer(BaseDashServer):
         async def _invalid_resource(err):
             return err.args[0], 404
 
-    def _html_response_wrapper(self, view_func):
+    def _html_response_wrapper(self, view_func: Callable[..., Any] | str):
 
         async def wrapped(*_args, **_kwargs):
             html_val = view_func() if callable(view_func) else view_func
@@ -122,7 +127,13 @@ class QuartDashServer(BaseDashServer):
 
         return wrapped
 
-    def add_url_rule(self, rule, view_func, endpoint=None, methods=None):
+    def add_url_rule(
+        self,
+        rule: str,
+        view_func: Callable[..., Any],
+        endpoint: str | None = None,
+        methods: list[str] | None = None,
+    ):
         self.server.add_url_rule(
             rule, view_func=view_func, endpoint=endpoint, methods=methods or ["GET"]
         )
@@ -145,10 +156,10 @@ class QuartDashServer(BaseDashServer):
         # pylint: disable=protected-access
         dash_app._add_url("<path:path>", catchall, methods=["GET"])
 
-    def before_request(self, func):
+    def before_request(self, func: Callable[[], Any]):
         self.server.before_request(func)
 
-    def after_request(self, func):
+    def after_request(self, func: Callable[[], Any]):
         @self.server.after_request
         async def _after(response):
             if func is not None:
@@ -157,22 +168,27 @@ class QuartDashServer(BaseDashServer):
                     await result
             return response
 
-    def run(self, host, port, debug, **kwargs):
+    def run(self, host: str, port: int, debug: bool, **kwargs: Any):
         self.config = {"debug": debug, **kwargs} if debug else kwargs
         self.server.run(host=host, port=port, debug=debug, **kwargs)
 
-    def make_response(self, data, mimetype=None, content_type=None):
+    def make_response(
+        self,
+        data: str | bytes | bytearray,
+        mimetype: str | None = None,
+        content_type: str | None = None,
+    ):
         if Response is None:
             raise RuntimeError("Quart not installed; cannot generate Response")
         return Response(data, mimetype=mimetype, content_type=content_type)
 
-    def jsonify(self, obj):
+    def jsonify(self, obj: Any):
         if jsonify is None:
             raise RuntimeError("Quart not installed; cannot jsonify")
         return jsonify(obj)
 
     def serve_component_suites(
-        self, dash_app: Dash, package_name: str, fingerprinted_path
+        self, dash_app: Dash, package_name: str, fingerprinted_path: str
     ):  # noqa: ARG002 unused req preserved for interface parity
         path_in_pkg, has_fingerprint = check_fingerprint(fingerprinted_path)
         _validate.validate_js_path(dash_app.registered_paths, package_name, path_in_pkg)
@@ -195,7 +211,7 @@ class QuartDashServer(BaseDashServer):
             raise RuntimeError("Quart not installed; cannot generate Response")
         return Response(data, content_type=mimetype, headers=headers)
 
-    def setup_component_suites(self, dash_app):
+    def setup_component_suites(self, dash_app: Dash):
         async def serve(package_name, fingerprinted_path):
             return self.serve_component_suites(
                 dash_app, package_name, fingerprinted_path
@@ -229,7 +245,7 @@ class QuartDashServer(BaseDashServer):
 
         return _dispatch
 
-    def register_callback_api_routes(self, callback_api_paths):
+    def register_callback_api_routes(self, callback_api_paths: Dict[str, Callable[..., Any]]):
         """
         Register callback API endpoints on the Quart app.
         Each key in callback_api_paths is a route, each value is a handler (sync or async).

@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from contextvars import copy_context, ContextVar
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict
 import sys
 import mimetypes
 import hashlib
@@ -68,14 +70,14 @@ class FastAPIDashServer(BaseDashServer):
         self.server: FastAPI = server
         super().__init__()
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: Any, **kwargs: Any):
         # ASGI: (scope, receive, send)
         if len(args) == 3 and isinstance(args[0], dict) and "type" in args[0]:
             return self.server(*args, **kwargs)
         raise TypeError("FastAPI app must be called with (scope, receive, send)")
 
     @staticmethod
-    def create_app(name="__main__", config=None):
+    def create_app(name: str = "__main__", config: Dict[str, Any] | None = None):
         app = FastAPI()
         app.add_middleware(CurrentRequestMiddleware)
 
@@ -85,7 +87,7 @@ class FastAPIDashServer(BaseDashServer):
         return app
 
     def register_assets_blueprint(
-        self, blueprint_name, assets_url_path, assets_folder
+        self, blueprint_name: str, assets_url_path: str, assets_folder: str
     ):
         try:
             self.server.mount(
@@ -106,13 +108,15 @@ class FastAPIDashServer(BaseDashServer):
         async def _invalid_resources_handler(_request, exc):
             return Response(content=exc.args[0], status_code=404)
 
-    def register_prune_error_handler(self, secret, get_traceback_func):
+    def register_prune_error_handler(
+        self, secret: str, get_traceback_func: Callable[[str, BaseException], str]
+    ):
         @self.server.exception_handler(Exception)
         async def _wrap_errors(_error_request, error):
             tb = get_traceback_func(secret, error)
             return PlainTextResponse(tb, status_code=500)
 
-    def _html_response_wrapper(self, view_func):
+    def _html_response_wrapper(self, view_func: Callable[..., Any] | str):
         async def wrapped(*_args, **_kwargs):
             # If view_func is a function, call it; if it's a string, use it directly
             html = view_func() if callable(view_func) else view_func
@@ -141,7 +145,12 @@ class FastAPIDashServer(BaseDashServer):
             dash_app._add_url("{path:path}", catchall, methods=["GET"])
 
     def add_url_rule(
-        self, rule, view_func, endpoint=None, methods=None, include_in_schema=False
+        self,
+        rule: str,
+        view_func: Callable[..., Any] | str,
+        endpoint: str | None = None,
+        methods: list[str] | None = None,
+        include_in_schema: bool = False,
     ):
         if rule == "":
             rule = "/"
@@ -156,15 +165,15 @@ class FastAPIDashServer(BaseDashServer):
             include_in_schema=include_in_schema,
         )
 
-    def before_request(self, func):
+    def before_request(self, func: Callable[[], Any] | None):
         # FastAPI does not have before_request, but we can use middleware
         self.server.middleware("http")(self._make_before_middleware(func))
 
-    def after_request(self, func):
+    def after_request(self, func: Callable[[], Any] | None):
         # FastAPI does not have after_request, but we can use middleware
         self.server.middleware("http")(self._make_after_middleware(func))
 
-    def run(self, host, port, debug, **kwargs):
+    def run(self, host: str, port: int, debug: bool, **kwargs: Any):
         self.config = dict({"debug": debug} if debug else {}, **kwargs)
         # Uvicorn requires an import string for reload; derive if possible else run without reload.
         if debug:
@@ -178,7 +187,12 @@ class FastAPIDashServer(BaseDashServer):
         # Fallback: run the FastAPI instance directly (no reload or reload unsupported)
         uvicorn.run(self.server, host=host, port=port, reload=False, **kwargs)
 
-    def make_response(self, data, mimetype=None, content_type=None):
+    def make_response(
+        self,
+        data: str | bytes | bytearray,
+        mimetype: str | None = None,
+        content_type: str | None = None,
+    ):
         headers = {}
         if mimetype:
             headers["content-type"] = mimetype
@@ -186,10 +200,10 @@ class FastAPIDashServer(BaseDashServer):
             headers["content-type"] = content_type
         return Response(content=data, headers=headers)
 
-    def jsonify(self, obj):
+    def jsonify(self, obj: Any):
         return JSONResponse(content=obj)
 
-    def _make_before_middleware(self, func):
+    def _make_before_middleware(self, func: Callable[[], Any] | None):
         async def middleware(request, call_next):
             if func is not None:
                 if inspect.iscoroutinefunction(func):
@@ -201,7 +215,7 @@ class FastAPIDashServer(BaseDashServer):
 
         return middleware
 
-    def _make_after_middleware(self, func):
+    def _make_after_middleware(self, func: Callable[[], Any] | None):
         async def middleware(request, call_next):
             response = await call_next(request)
             if func is not None:
@@ -214,7 +228,11 @@ class FastAPIDashServer(BaseDashServer):
         return middleware
 
     def serve_component_suites(
-        self, dash_app: Dash, package_name, fingerprinted_path, request
+        self,
+        dash_app: Dash,
+        package_name: str,
+        fingerprinted_path: str,
+        request: Request,
     ):
 
         path_in_pkg, has_fingerprint = check_fingerprint(fingerprinted_path)
@@ -282,7 +300,7 @@ class FastAPIDashServer(BaseDashServer):
             content=pkgutil.get_data("dash", "favicon.ico"), media_type="image/x-icon"
         )
 
-    def register_timing_hooks(self, first_run):
+    def register_timing_hooks(self, first_run: bool):
         if not first_run:
             return
 
@@ -309,7 +327,7 @@ class FastAPIDashServer(BaseDashServer):
                     headers.append("Server-Timing", value)
             return response
 
-    def register_callback_api_routes(self, callback_api_paths):
+    def register_callback_api_routes(self, callback_api_paths: Dict[str, Callable[..., Any]]):
         """
         Register callback API endpoints on the FastAPI app.
         Each key in callback_api_paths is a route, each value is a handler (sync or async).

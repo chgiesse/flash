@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from contextvars import copy_context
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict
 import asyncio
 import pkgutil
 import sys
@@ -7,13 +9,14 @@ import mimetypes
 import time
 import inspect
 import flask
+
 from dash.fingerprint import check_fingerprint
 from dash import _validate
 from dash.exceptions import PreventUpdate, InvalidResourceError
-from dash import backends
+from .base_server import BaseDashServer, RequestAdapter
+
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from dash import Dash
-from .base_server import BaseDashServer, RequestAdapter
 
 
 class FlaskDashServer(BaseDashServer):
@@ -23,19 +26,19 @@ class FlaskDashServer(BaseDashServer):
         self.server_type = "flask"
         super().__init__()
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: Any, **kwargs: Any):
         # Always WSGI
         return self.server(*args, **kwargs)
 
     @staticmethod
-    def create_app(name="__main__", config=None):
+    def create_app(name: str = "__main__", config: Dict[str, Any] | None = None):
         app = flask.Flask(name)
         if config:
             app.config.update(config)
         return app
 
     def register_assets_blueprint(
-        self, blueprint_name, assets_url_path, assets_folder
+        self, blueprint_name: str, assets_url_path: str, assets_folder: str
     ):
         bp = flask.Blueprint(
             blueprint_name,
@@ -54,34 +57,44 @@ class FlaskDashServer(BaseDashServer):
         def _invalid_resources_handler(err):
             return err.args[0], 404
 
-    def register_prune_error_handler(self, secret, get_traceback_func):
+    def register_prune_error_handler(self, secret: str, get_traceback_func: Callable[[str, BaseException], str]):
         @self.server.errorhandler(Exception)
         def _wrap_errors(error):
             tb = get_traceback_func(secret, error)
             return tb, 500
 
-    def add_url_rule(self, rule, view_func, endpoint=None, methods=None):
+    def add_url_rule(
+        self,
+        rule: str,
+        view_func: Callable[..., Any],
+        endpoint: str | None = None,
+        methods: list[str] | None = None,
+    ):
         self.server.add_url_rule(
             rule, view_func=view_func, endpoint=endpoint, methods=methods or ["GET"]
         )
 
-    def before_request(self, func):
+    def before_request(self, func: Callable[[], Any]):
+        # Flask expects a callable; user responsibility not to pass None
         self.server.before_request(func)
 
-    def after_request(self, func):
+    def after_request(self, func: Callable[[Any], Any]):
+        # Flask after_request expects a function(response) -> response
         self.server.after_request(func)
 
-    def run(self, host, port, debug, **kwargs):
+    def run(self, host: str, port: int, debug: bool, **kwargs: Any):
         self.server.run(host=host, port=port, debug=debug, **kwargs)
 
-    def make_response(self, data, mimetype=None, content_type=None):
+    def make_response(
+        self,
+        data: str | bytes | bytearray,
+        mimetype: str | None = None,
+        content_type: str | None = None,
+    ):
         return flask.Response(data, mimetype=mimetype, content_type=content_type)
 
-    def jsonify(self, obj):
+    def jsonify(self, obj: Any):
         return flask.jsonify(obj)
-
-    def get_request_adapter(self):
-        return FlaskRequestAdapter
 
     def setup_catchall(self, dash_app: Dash):
         def catchall(*args, **kwargs):
@@ -97,7 +110,9 @@ class FlaskDashServer(BaseDashServer):
         # pylint: disable=protected-access
         dash_app._add_url("", index, methods=["GET"])
 
-    def serve_component_suites(self, dash_app: Dash, package_name, fingerprinted_path):
+    def serve_component_suites(
+        self, dash_app: Dash, package_name: str, fingerprinted_path: str
+    ):
         path_in_pkg, has_fingerprint = check_fingerprint(fingerprinted_path)
         _validate.validate_js_path(dash_app.registered_paths, package_name, path_in_pkg)
         extension = "." + path_in_pkg.split(".")[-1]
@@ -122,7 +137,7 @@ class FlaskDashServer(BaseDashServer):
                 response = flask.Response(None, status=304)
         return response
 
-    def setup_component_suites(self, dash_app):
+    def setup_component_suites(self, dash_app: Dash):
         def serve(package_name, fingerprinted_path):
             return self.serve_component_suites(
                 dash_app, package_name, fingerprinted_path
@@ -135,7 +150,7 @@ class FlaskDashServer(BaseDashServer):
         )
 
     # pylint: disable=unused-argument
-    def dispatch(self, dash_app):
+    def dispatch(self, dash_app: Dash):
         def _dispatch():
             body = flask.request.get_json()
             # pylint: disable=protected-access
@@ -178,13 +193,15 @@ class FlaskDashServer(BaseDashServer):
             pkgutil.get_data("dash", "favicon.ico"), content_type="image/x-icon"
         )
 
-    def register_timing_hooks(self, _first_run):
-        def _before_request():
-            flask.g.timing_information = {
+    def register_timing_hooks(self, _first_run: bool):
+        # Define timing hooks inside method scope and register them
+        def _before_request() -> None:
+            flask.g.timing_information = {  # type: ignore[attr-defined]
                 "__dash_server": {"dur": time.time(), "desc": None}
             }
-        def _after_request(response):
-            timing_information = flask.g.get("timing_information", None)
+
+        def _after_request(response: flask.Response):  # type: ignore[name-defined]
+            timing_information = flask.g.get("timing_information", None)  # type: ignore[attr-defined]
             if timing_information is None:
                 return response
             dash_total = timing_information.get("__dash_server", None)
@@ -198,10 +215,11 @@ class FlaskDashServer(BaseDashServer):
                     value += f";dur={info['dur']}"
                 response.headers.add("Server-Timing", value)
             return response
+
         self.before_request(_before_request)
         self.after_request(_after_request)
 
-    def register_callback_api_routes(self, callback_api_paths):
+    def register_callback_api_routes(self, callback_api_paths: Dict[str, Callable[..., Any]]):
         """
         Register callback API endpoints on the Flask app.
         Each key in callback_api_paths is a route, each value is a handler (sync or async).
@@ -238,12 +256,12 @@ class FlaskDashServer(BaseDashServer):
 class FlaskRequestAdapter(RequestAdapter):
     """Flask implementation using property-based accessors."""
 
-    def __init__(self, server=None) -> None:
+    def __init__(self, server: flask.Flask) -> None:
         self.server_type = "flask"
-        self.server = server
+        self.server: flask.Flask = server
         super().__init__()
 
-    def __call__(self, *args, **kwds):
+    def __call__(self, *args: Any, **kwds: Any):
         return self
 
     @property
