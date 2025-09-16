@@ -60,13 +60,6 @@ class BaseDashServer(ABC):
 
 
 class RequestAdapter(ABC):
-    """Abstract base for request adapters used by server backends.
-
-    Refactored interface: accessors except ``get_json`` are exposed as
-    read-only properties in concrete implementations. Legacy ``get_*``
-    methods (other than ``get_json``) may remain temporarily in concrete
-    adapters as deprecation shims.
-    """
 
     def __call__(self) -> Any:
         return self
