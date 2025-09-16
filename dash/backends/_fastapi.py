@@ -81,10 +81,10 @@ class FastAPIDashServer(BaseDashServer):
         return app
 
     def register_assets_blueprint(
-        self, app, blueprint_name, assets_url_path, assets_folder
+        self, blueprint_name, assets_url_path, assets_folder
     ):
         try:
-            app.mount(
+            self.server.mount(
                 assets_url_path,
                 StaticFiles(directory=assets_folder),
                 name=blueprint_name,
@@ -93,17 +93,17 @@ class FastAPIDashServer(BaseDashServer):
             # directory doesnt exist
             pass
 
-    def register_error_handlers(self, app: FastAPI):
-        @app.exception_handler(PreventUpdate)
+    def register_error_handlers(self):
+        @self.server.exception_handler(PreventUpdate)
         async def _handle_error(_request, _exc):
             return Response(status_code=204)
 
-        @app.exception_handler(InvalidResourceError)
+        @self.server.exception_handler(InvalidResourceError)
         async def _invalid_resources_handler(_request, exc):
             return Response(content=exc.args[0], status_code=404)
 
-    def register_prune_error_handler(self, app, secret, get_traceback_func):
-        @app.exception_handler(Exception)
+    def register_prune_error_handler(self, secret, get_traceback_func):
+        @self.server.exception_handler(Exception)
         async def _wrap_errors(_error_request, error):
             tb = get_traceback_func(secret, error)
             return PlainTextResponse(tb, status_code=500)
@@ -124,7 +124,7 @@ class FastAPIDashServer(BaseDashServer):
         dash_app._add_url("", index, methods=["GET"])
 
     def setup_catchall(self, dash_app):
-        @dash_app.server.on_event("startup")
+        @self.server.on_event("startup")
         def _setup_catchall():
             dash_app.enable_dev_tools(
                 **self.config, first_run=False
@@ -137,14 +137,14 @@ class FastAPIDashServer(BaseDashServer):
             dash_app._add_url("{path:path}", catchall, methods=["GET"])
 
     def add_url_rule(
-        self, app, rule, view_func, endpoint=None, methods=None, include_in_schema=False
+        self, rule, view_func, endpoint=None, methods=None, include_in_schema=False
     ):
         if rule == "":
             rule = "/"
         if isinstance(view_func, str):
             # Wrap string or sync function to async FastAPI handler
             view_func = self._html_response_wrapper(view_func)
-        app.add_api_route(
+        self.server.add_api_route(
             rule,
             view_func,
             methods=methods or ["GET"],
@@ -152,15 +152,15 @@ class FastAPIDashServer(BaseDashServer):
             include_in_schema=include_in_schema,
         )
 
-    def before_request(self, app, func):
+    def before_request(self, func):
         # FastAPI does not have before_request, but we can use middleware
-        app.middleware("http")(self._make_before_middleware(func))
+        self.server.middleware("http")(self._make_before_middleware(func))
 
-    def after_request(self, app, func):
+    def after_request(self, func):
         # FastAPI does not have after_request, but we can use middleware
-        app.middleware("http")(self._make_after_middleware(func))
+        self.server.middleware("http")(self._make_after_middleware(func))
 
-    def run(self, app, host, port, debug, **kwargs):
+    def run(self, host, port, debug, **kwargs):
         self.config = dict({"debug": debug} if debug else {}, **kwargs)
         # Uvicorn requires an import string for reload; derive if possible else run without reload.
         if debug:
@@ -172,7 +172,7 @@ class FastAPIDashServer(BaseDashServer):
                 uvicorn.run(target, host=host, port=port, reload=True, **kwargs)
                 return
         # Fallback: run the FastAPI instance directly (no reload or reload unsupported)
-        uvicorn.run(app, host=host, port=port, reload=False, **kwargs)
+        uvicorn.run(self.server, host=host, port=port, reload=False, **kwargs)
 
     def make_response(self, data, mimetype=None, content_type=None):
         headers = {}
@@ -249,7 +249,7 @@ class FastAPIDashServer(BaseDashServer):
         )
 
     # pylint: disable=unused-argument
-    def dispatch(self, app, dash_app, use_async=False):
+    def dispatch(self, dash_app, use_async=False):
 
         async def _dispatch(request: Request):
             # pylint: disable=protected-access
@@ -278,11 +278,11 @@ class FastAPIDashServer(BaseDashServer):
             content=pkgutil.get_data("dash", "favicon.ico"), media_type="image/x-icon"
         )
 
-    def register_timing_hooks(self, app, first_run):
+    def register_timing_hooks(self, first_run):
         if not first_run:
             return
 
-        @app.middleware("http")
+        @self.server.middleware("http")
         async def timing_middleware(request: Request, call_next):
             # Before request
             request.state.timing_information = {
@@ -305,7 +305,7 @@ class FastAPIDashServer(BaseDashServer):
                     headers.append("Server-Timing", value)
             return response
 
-    def register_callback_api_routes(self, app, callback_api_paths):
+    def register_callback_api_routes(self, callback_api_paths):
         """
         Register callback API endpoints on the FastAPI app.
         Each key in callback_api_paths is a route, each value is a handler (sync or async).
@@ -329,7 +329,7 @@ class FastAPIDashServer(BaseDashServer):
                     result = handler(**kwargs)
                 return JSONResponse(content=result)
 
-            app.add_api_route(
+            self.server.add_api_route(
                 route,
                 view_func,
                 methods=methods,

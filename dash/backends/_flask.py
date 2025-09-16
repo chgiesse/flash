@@ -32,7 +32,7 @@ class FlaskDashServer(BaseDashServer):
         return app
 
     def register_assets_blueprint(
-        self, app, blueprint_name, assets_url_path, assets_folder
+        self, blueprint_name, assets_url_path, assets_folder
     ):
         bp = flask.Blueprint(
             blueprint_name,
@@ -40,36 +40,36 @@ class FlaskDashServer(BaseDashServer):
             static_folder=assets_folder,
             static_url_path=assets_url_path,
         )
-        app.register_blueprint(bp)
+        self.server.register_blueprint(bp)
 
-    def register_error_handlers(self, app):
-        @app.errorhandler(PreventUpdate)
+    def register_error_handlers(self):
+        @self.server.errorhandler(PreventUpdate)
         def _handle_error(_):
             return "", 204
 
-        @app.errorhandler(InvalidResourceError)
+        @self.server.errorhandler(InvalidResourceError)
         def _invalid_resources_handler(err):
             return err.args[0], 404
 
-    def register_prune_error_handler(self, app, secret, get_traceback_func):
-        @app.errorhandler(Exception)
+    def register_prune_error_handler(self, secret, get_traceback_func):
+        @self.server.errorhandler(Exception)
         def _wrap_errors(error):
             tb = get_traceback_func(secret, error)
             return tb, 500
 
-    def add_url_rule(self, app, rule, view_func, endpoint=None, methods=None):
-        app.add_url_rule(
+    def add_url_rule(self, rule, view_func, endpoint=None, methods=None):
+        self.server.add_url_rule(
             rule, view_func=view_func, endpoint=endpoint, methods=methods or ["GET"]
         )
 
-    def before_request(self, app, func):
-        app.before_request(func)
+    def before_request(self, func):
+        self.server.before_request(func)
 
-    def after_request(self, app, func):
-        app.after_request(func)
+    def after_request(self, func):
+        self.server.after_request(func)
 
-    def run(self, app, host, port, debug, **kwargs):
-        app.run(host=host, port=port, debug=debug, **kwargs)
+    def run(self, host, port, debug, **kwargs):
+        self.server.run(host=host, port=port, debug=debug, **kwargs)
 
     def make_response(self, data, mimetype=None, content_type=None):
         return flask.Response(data, mimetype=mimetype, content_type=content_type)
@@ -136,7 +136,7 @@ class FlaskDashServer(BaseDashServer):
         )
 
     # pylint: disable=unused-argument
-    def dispatch(self, app, dash_app, use_async=False):
+    def dispatch(self, dash_app, use_async=False):
         def _dispatch():
             body = flask.request.get_json()
             # pylint: disable=protected-access
@@ -179,12 +179,11 @@ class FlaskDashServer(BaseDashServer):
             pkgutil.get_data("dash", "favicon.ico"), content_type="image/x-icon"
         )
 
-    def register_timing_hooks(self, app, _first_run):
+    def register_timing_hooks(self, _first_run):
         def _before_request():
             flask.g.timing_information = {
                 "__dash_server": {"dur": time.time(), "desc": None}
             }
-
         def _after_request(response):
             timing_information = flask.g.get("timing_information", None)
             if timing_information is None:
@@ -200,11 +199,10 @@ class FlaskDashServer(BaseDashServer):
                     value += f";dur={info['dur']}"
                 response.headers.add("Server-Timing", value)
             return response
+        self.before_request(_before_request)
+        self.after_request(_after_request)
 
-        self.before_request(app, _before_request)
-        self.after_request(app, _after_request)
-
-    def register_callback_api_routes(self, app, callback_api_paths):
+    def register_callback_api_routes(self, callback_api_paths):
         """
         Register callback API endpoints on the Flask app.
         Each key in callback_api_paths is a route, each value is a handler (sync or async).
@@ -217,20 +215,23 @@ class FlaskDashServer(BaseDashServer):
 
             if inspect.iscoroutinefunction(handler):
 
-                async def view_func(*args, handler=handler, **kwargs):
+                async def _async_view_func(*args, handler=handler, **kwargs):
                     data = flask.request.get_json()
                     result = await handler(**data) if data else await handler()
                     return flask.jsonify(result)
 
+                view_func = _async_view_func
             else:
 
-                def view_func(*args, handler=handler, **kwargs):
+                def _sync_view_func(*args, handler=handler, **kwargs):
                     data = flask.request.get_json()
                     result = handler(**data) if data else handler()
                     return flask.jsonify(result)
 
+                view_func = _sync_view_func
+
             # Flask 2.x+ supports async views natively
-            app.add_url_rule(
+            self.server.add_url_rule(
                 route, endpoint=endpoint, view_func=view_func, methods=methods
             )
 

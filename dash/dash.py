@@ -705,7 +705,6 @@ class Dash(ObsoleteChecker):
         bp_prefix = config.routes_pathname_prefix.replace("/", "_").replace(".", "_")
         assets_blueprint_name = f"{bp_prefix}dash_assets"
         self.backend.register_assets_blueprint(
-            self.server,
             assets_blueprint_name,
             config.routes_pathname_prefix + self.config.assets_url_path.lstrip("/"),
             self.config.assets_folder,
@@ -727,8 +726,9 @@ class Dash(ObsoleteChecker):
                 raise ImportError(
                     "To use the compress option, you need to install dash[compress]"
                 ) from error
-        self.backend.register_error_handlers(self.server)
-        self.backend.before_request(self.server, self._setup_server)
+
+        self.backend.register_error_handlers()
+        self.backend.before_request(self._setup_server)
         self._setup_routes()
         _get_app.APP = self
         self.enable_pages()
@@ -737,7 +737,6 @@ class Dash(ObsoleteChecker):
     def _add_url(self, name: str, view_func: RouteCallable, methods=("GET",)) -> None:
         full_name = self.config.routes_pathname_prefix + name
         self.backend.add_url_rule(
-            self.server,
             full_name,
             view_func=view_func,
             endpoint=full_name,
@@ -751,7 +750,7 @@ class Dash(ObsoleteChecker):
         self._add_url("_dash-dependencies", self.dependencies)
         self._add_url(
             "_dash-update-component",
-            self.backend.dispatch(self.server, self, self._use_async),
+            self.backend.dispatch(self, self._use_async),
             ["POST"],
         )
         self._add_url("_reload-hash", self.serve_reload_hash)
@@ -798,7 +797,7 @@ class Dash(ObsoleteChecker):
             self.callback_api_paths[k] = _callback.GLOBAL_API_PATHS.pop(k)
 
         # Delegate to the server factory for route registration
-        self.backend.register_callback_api_routes(self.server, self.callback_api_paths)
+        self.backend.register_callback_api_routes(self.callback_api_paths)
 
     def _setup_plotlyjs(self):
         # pylint: disable=import-outside-toplevel
@@ -2005,12 +2004,10 @@ class Dash(ObsoleteChecker):
                 )
             elif dev_tools.prune_errors:
                 secret = gen_salt(20)
-                self.backend.register_prune_error_handler(
-                    self.server, secret, _get_traceback
-                )
+                self.backend.register_prune_error_handler(secret, _get_traceback)
 
         if debug and dev_tools.ui:
-            self.backend.register_timing_hooks(self.server, first_run)
+            self.backend.register_timing_hooks(first_run)
 
         if (
             debug
@@ -2294,9 +2291,7 @@ class Dash(ObsoleteChecker):
                 server_url=jupyter_server_url,
             )
         else:
-            self.backend.run(
-                self.server, host=host, port=port, debug=debug, **flask_run_options
-            )
+            self.backend.run(host=host, port=port, debug=debug, **flask_run_options)
 
     def enable_pages(self) -> None:
         if not self.use_pages:
@@ -2463,7 +2458,7 @@ class Dash(ObsoleteChecker):
                 Input(_ID_STORE, "data"),
             )
 
-        self.backend.before_request(self.server, router)
+        self.backend.before_request(router)
 
     def __call__(self, *args, **kwargs):
         return self.backend.__call__(*args, **kwargs)

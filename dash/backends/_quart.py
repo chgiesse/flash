@@ -52,7 +52,7 @@ class QuartDashServer(BaseDashServer):
         return app
 
     def register_assets_blueprint(
-        self, app: "Quart", blueprint_name, assets_url_path, assets_folder  # type: ignore[name-defined]
+        self, blueprint_name, assets_url_path, assets_folder  # type: ignore[name-defined]
     ):
         if Blueprint is None:
             raise RuntimeError(
@@ -64,26 +64,24 @@ class QuartDashServer(BaseDashServer):
             static_folder=assets_folder,
             static_url_path=assets_url_path,
         )
-        app.register_blueprint(bp)
+        self.server.register_blueprint(bp)
 
-    def register_prune_error_handler(self, app: "Quart", secret, get_traceback_func):  # type: ignore[name-defined]
-        @app.errorhandler(Exception)
+    def register_prune_error_handler(self, secret, get_traceback_func):  # type: ignore[name-defined]
+        @self.server.errorhandler(Exception)
         async def _wrap_errors(error):
             tb = get_traceback_func(secret, error)
             return tb, 500
 
-    def register_timing_hooks(self, app: "Quart", _first_run):  # type: ignore[name-defined] parity with Flask factory
-
-        @app.before_request
+    def register_timing_hooks(self, _first_run):  # type: ignore[name-defined] parity with Flask factory
+        @self.server.before_request
         async def _before_request():  # pragma: no cover - timing infra
             if g is not None:
                 g.timing_information = {  # type: ignore[attr-defined]
                     "__dash_server": {"dur": time.time(), "desc": None}
                 }
 
-        @app.after_request
+        @self.server.after_request
         async def _after_request(response):  # pragma: no cover - timing infra
-
             timing_information = (
                 getattr(g, "timing_information", None) if g is not None else None
             )
@@ -105,12 +103,12 @@ class QuartDashServer(BaseDashServer):
                     response.headers["Server-Timing"] = value
             return response
 
-    def register_error_handlers(self, app: Quart):  # type: ignore[name-defined]
-        @app.errorhandler(PreventUpdate)
+    def register_error_handlers(self):  # type: ignore[name-defined]
+        @self.server.errorhandler(PreventUpdate)
         async def _prevent_update(_):
             return "", 204
 
-        @app.errorhandler(InvalidResourceError)
+        @self.server.errorhandler(InvalidResourceError)
         async def _invalid_resource(err):
             return err.args[0], 404
 
@@ -125,8 +123,8 @@ class QuartDashServer(BaseDashServer):
 
         return wrapped
 
-    def add_url_rule(self, app, rule, view_func, endpoint=None, methods=None):
-        app.add_url_rule(
+    def add_url_rule(self, rule, view_func, endpoint=None, methods=None):
+        self.server.add_url_rule(
             rule, view_func=view_func, endpoint=endpoint, methods=methods or ["GET"]
         )
 
@@ -148,11 +146,11 @@ class QuartDashServer(BaseDashServer):
         # pylint: disable=protected-access
         dash_app._add_url("<path:path>", catchall, methods=["GET"])
 
-    def before_request(self, app, func):
-        app.before_request(func)
+    def before_request(self, func):
+        self.server.before_request(func)
 
-    def after_request(self, app, func):
-        @app.after_request
+    def after_request(self, func):
+        @self.server.after_request
         async def _after(response):
             if func is not None:
                 result = func()
@@ -160,9 +158,9 @@ class QuartDashServer(BaseDashServer):
                     await result
             return response
 
-    def run(self, app, host, port, debug, **kwargs):
+    def run(self, host, port, debug, **kwargs):
         self.config = {"debug": debug, **kwargs} if debug else kwargs
-        app.run(host=host, port=port, debug=debug, **kwargs)
+        self.server.run(host=host, port=port, debug=debug, **kwargs)
 
     def make_response(self, data, mimetype=None, content_type=None):
         if Response is None:
@@ -211,7 +209,7 @@ class QuartDashServer(BaseDashServer):
         )
 
     # pylint: disable=unused-argument
-    def dispatch(self, app, dash_app: "Dash", use_async=True):  # type: ignore[name-defined] Quart always async
+    def dispatch(self, dash_app: "Dash", use_async=True):  # type: ignore[name-defined] Quart always async
 
         async def _dispatch():
             adapter = QuartRequestAdapter()
@@ -232,7 +230,7 @@ class QuartDashServer(BaseDashServer):
 
         return _dispatch
 
-    def register_callback_api_routes(self, app, callback_api_paths):
+    def register_callback_api_routes(self, callback_api_paths):
         """
         Register callback API endpoints on the Quart app.
         Each key in callback_api_paths is a route, each value is a handler (sync or async).
@@ -267,7 +265,7 @@ class QuartDashServer(BaseDashServer):
                 return sync_view_func
 
             view_func = _make_view_func(handler)
-            app.add_url_rule(
+            self.server.add_url_rule(
                 route, endpoint=endpoint, view_func=view_func, methods=methods
             )
 

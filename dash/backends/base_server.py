@@ -20,31 +20,31 @@ class BaseDashServer(ABC):
 
     @abstractmethod
     def register_assets_blueprint(
-        self, app, blueprint_name: str, assets_url_path: str, assets_folder: str
+        self, blueprint_name: str, assets_url_path: str, assets_folder: str
     ) -> None:  # pragma: no cover - interface
         pass
 
     @abstractmethod
-    def register_error_handlers(self, app) -> None:  # pragma: no cover - interface
+    def register_error_handlers(self) -> None:  # pragma: no cover - interface
         pass
 
     @abstractmethod
     def add_url_rule(
-        self, app, rule: str, view_func, endpoint=None, methods=None
+        self, rule: str, view_func, endpoint=None, methods=None
     ) -> None:  # pragma: no cover - interface
         pass
 
     @abstractmethod
-    def before_request(self, app, func) -> None:  # pragma: no cover - interface
+    def before_request(self, func) -> None:  # pragma: no cover - interface
         pass
 
     @abstractmethod
-    def after_request(self, app, func) -> None:  # pragma: no cover - interface
+    def after_request(self, func) -> None:  # pragma: no cover - interface
         pass
 
     @abstractmethod
     def run(
-        self, app, host: str, port: int, debug: bool, **kwargs
+        self, host: str, port: int, debug: bool, **kwargs
     ) -> None:  # pragma: no cover - interface
         pass
 
