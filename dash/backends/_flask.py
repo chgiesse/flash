@@ -11,23 +11,30 @@ from dash.fingerprint import check_fingerprint
 from dash import _validate
 from dash._callback import _invoke_callback, _async_invoke_callback
 from dash.exceptions import PreventUpdate, InvalidResourceError
-from dash.backend import set_request_adapter
-from .base_server import BaseDashServer
+from dash import backends
+from .base_server import BaseDashServer, RequestAdapter
 
 
 class FlaskDashServer(BaseDashServer):
-    def __call__(self, server, *args, **kwargs):
-        # Always WSGI
-        return server(*args, **kwargs)
 
-    def create_app(self, name="__main__", config=None):
+    def __init__(self, server: flask.Flask) -> None:
+        self.server: flask.Flask = server
+        self.server_type = "flask"
+        super().__init__()
+
+    def __call__(self, *args, **kwargs):
+        # Always WSGI
+        return self.server(*args, **kwargs)
+
+    @staticmethod
+    def create_app(name="__main__", config=None):
         app = flask.Flask(name)
         if config:
             app.config.update(config)
         return app
 
     def register_assets_blueprint(
-        self, app, blueprint_name, assets_url_path, assets_folder
+        self, blueprint_name, assets_url_path, assets_folder
     ):
         bp = flask.Blueprint(
             blueprint_name,
@@ -35,14 +42,14 @@ class FlaskDashServer(BaseDashServer):
             static_folder=assets_folder,
             static_url_path=assets_url_path,
         )
-        app.register_blueprint(bp)
+        self.server.register_blueprint(bp)
 
-    def register_error_handlers(self, app):
-        @app.errorhandler(PreventUpdate)
+    def register_error_handlers(self):
+        @self.server.errorhandler(PreventUpdate)
         def _handle_error(_):
             return "", 204
 
-        @app.errorhandler(InvalidResourceError)
+        @self.server.errorhandler(InvalidResourceError)
         def _invalid_resources_handler(err):
             return err.args[0], 404
 
@@ -86,27 +93,27 @@ class FlaskDashServer(BaseDashServer):
             ).render_debugger_html(True, secret, True)
         return "".join(traceback.format_exception(type(error), error, _do_skip(error)))
 
-    def register_prune_error_handler(self, app, secret, prune_errors):
+    def register_prune_error_handler(self, secret, prune_errors):
         if prune_errors:
 
-            @app.errorhandler(Exception)
+            @self.server.errorhandler(Exception)
             def _wrap_errors(error):
                 tb = self._get_traceback(secret, error)
                 return tb, 500
 
-    def add_url_rule(self, app, rule, view_func, endpoint=None, methods=None):
-        app.add_url_rule(
+    def add_url_rule(self, rule, view_func, endpoint=None, methods=None):
+        self.server.add_url_rule(
             rule, view_func=view_func, endpoint=endpoint, methods=methods or ["GET"]
         )
 
-    def before_request(self, app, func):
-        app.before_request(func)
+    def before_request(self, func):
+        self.server.before_request(func)
 
-    def after_request(self, app, func):
-        app.after_request(func)
+    def after_request(self, func):
+        self.server.after_request(func)
 
-    def run(self, _dash_app, app, host, port, debug, **kwargs):
-        app.run(host=host, port=port, debug=debug, **kwargs)
+    def run(self, host, port, debug, **kwargs):
+        self.server.run(host=host, port=port, debug=debug, **kwargs)
 
     def make_response(self, data, mimetype=None, content_type=None):
         return flask.Response(data, mimetype=mimetype, content_type=content_type)
@@ -120,7 +127,7 @@ class FlaskDashServer(BaseDashServer):
     def setup_catchall(self, dash_app):
         def catchall(*args, **kwargs):
             adapter = FlaskRequestAdapter()
-            set_request_adapter(adapter)
+            backends.request_adapter = adapter
             return dash_app.index(*args, **kwargs)
 
         # pylint: disable=protected-access
@@ -129,7 +136,7 @@ class FlaskDashServer(BaseDashServer):
     def setup_index(self, dash_app):
         def index(*args, **kwargs):
             adapter = FlaskRequestAdapter()
-            set_request_adapter(adapter)
+            backends.request_adapter = adapter
             return dash_app.index(*args, **kwargs)
 
         # pylint: disable=protected-access
@@ -173,13 +180,11 @@ class FlaskDashServer(BaseDashServer):
         )
 
     # pylint: disable=unused-argument
-    def dispatch(self, app, dash_app, use_async=False):
+    def dispatch(self, dash_app):
         def _dispatch():
-            adapter = FlaskRequestAdapter()
-            set_request_adapter(adapter)
             body = flask.request.get_json()
             # pylint: disable=protected-access
-            g = dash_app._initialize_context(body, adapter)
+            g = dash_app._initialize_context(body)
             func = dash_app._prepare_callback(g, body)
             args = dash_app._inputs_to_vals(g.inputs_list + g.states_list)
             ctx = copy_context()
@@ -195,11 +200,9 @@ class FlaskDashServer(BaseDashServer):
             return g.dash_response
 
         async def _dispatch_async():
-            adapter = FlaskRequestAdapter()
-            set_request_adapter(adapter)
             body = flask.request.get_json()
             # pylint: disable=protected-access
-            g = dash_app._initialize_context(body, adapter)
+            g = dash_app._initialize_context(body)
             func = dash_app._prepare_callback(g, body)
             args = dash_app._inputs_to_vals(g.inputs_list + g.states_list)
             ctx = copy_context()
@@ -210,7 +213,7 @@ class FlaskDashServer(BaseDashServer):
             g.dash_response.set_data(response_data)
             return g.dash_response
 
-        if use_async:
+        if dash_app.use_async:
             return _dispatch_async
         return _dispatch
 
@@ -220,7 +223,7 @@ class FlaskDashServer(BaseDashServer):
             pkgutil.get_data("dash", "favicon.ico"), content_type="image/x-icon"
         )
 
-    def register_timing_hooks(self, app, _first_run):
+    def register_timing_hooks(self, _first_run):
         def _before_request():
             flask.g.timing_information = {
                 "__dash_server": {"dur": time.time(), "desc": None}
@@ -242,10 +245,10 @@ class FlaskDashServer(BaseDashServer):
                 response.headers.add("Server-Timing", value)
             return response
 
-        self.before_request(app, _before_request)
-        self.after_request(app, _after_request)
+        self.before_request(_before_request)
+        self.after_request(_after_request)
 
-    def register_callback_api_routes(self, app, callback_api_paths):
+    def register_callback_api_routes(self, callback_api_paths):
         """
         Register callback API endpoints on the Flask app.
         Each key in callback_api_paths is a route, each value is a handler (sync or async).
@@ -271,52 +274,61 @@ class FlaskDashServer(BaseDashServer):
                     return flask.jsonify(result)
 
             # Flask 2.x+ supports async views natively
-            app.add_url_rule(
+            self.server.add_url_rule(
                 route, endpoint=endpoint, view_func=view_func, methods=methods
             )
 
 
-class FlaskRequestAdapter:
-    @staticmethod
-    def get_args():
+class FlaskRequestAdapter(RequestAdapter):
+    """Flask implementation using property-based accessors."""
+
+    def __init__(self, server=None) -> None:
+        self.server_type = "flask"
+        self.server = server
+        super().__init__()
+
+    def __call__(self, *args, **kwds):
+        return self
+
+    @property
+    def args(self):
         return flask.request.args
 
-    @staticmethod
-    def get_root():
+    @property
+    def root(self):
         return flask.request.url_root
 
-    @staticmethod
-    def get_json():
+    def get_json(self):  # kept as method
         return flask.request.get_json()
 
-    @staticmethod
-    def is_json():
+    @property
+    def is_json(self):
         return flask.request.is_json
 
-    @staticmethod
-    def get_cookies():
+    @property
+    def cookies(self):
         return flask.request.cookies
 
-    @staticmethod
-    def get_headers():
+    @property
+    def headers(self):
         return flask.request.headers
 
-    @staticmethod
-    def get_url():
+    @property
+    def url(self):
         return flask.request.url
 
-    @staticmethod
-    def get_full_path():
+    @property
+    def full_path(self):
         return flask.request.full_path
 
-    @staticmethod
-    def get_remote_addr():
+    @property
+    def remote_addr(self):
         return flask.request.remote_addr
 
-    @staticmethod
-    def get_origin():
+    @property
+    def origin(self):
         return getattr(flask.request, "origin", None)
 
-    @staticmethod
-    def get_path():
+    @property
+    def path(self):
         return flask.request.path

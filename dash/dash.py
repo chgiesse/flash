@@ -25,7 +25,6 @@ from importlib_metadata import version as _get_distribution_version
 from dash import dcc
 from dash import html
 from dash import dash_table
-
 from .fingerprint import build_fingerprint
 from .resources import Scripts, Css
 from .dependencies import (
@@ -38,7 +37,7 @@ from .exceptions import (
     ProxyError,
     DuplicateCallback,
 )
-from .backend import get_request_adapter, get_backend
+from .backends import get_backend
 from .version import __version__
 from ._configs import get_combined_config, pathname_configs, pages_folder_config
 from ._utils import (
@@ -63,6 +62,7 @@ from . import _dash_renderer
 from . import _validate
 from . import _watch
 from . import _get_app
+from . import backends
 
 from ._get_app import with_app_context, with_app_context_factory
 from ._grouping import map_grouping, grouping_len, update_args_group
@@ -182,6 +182,16 @@ def _is_quart_instance(obj):
         return isinstance(obj, Quart)
     except ImportError:
         return False
+
+
+def get_server_type(server):
+    if _is_flask_instance(server):
+        return "flask"
+    if _is_quart_instance(server):
+        return "quart"
+    if _is_fastapi_instance(server):
+        return "fastapi"
+    raise ValueError("Invalid backend argument")
 
 
 # Singleton signal to not update an output, alternative to PreventUpdate
@@ -467,31 +477,24 @@ class Dash(ObsoleteChecker):
 
         # Determine backend
         if backend is None:
-            backend_cls = get_backend("flask")
+            backend_cls, request_cls = get_backend("flask")
         elif isinstance(backend, str):
-            backend_cls = get_backend(backend)
+            backend_cls, request_cls = get_backend(backend)
         elif isinstance(backend, type):
             backend_cls = backend
+            _, request_cls = get_backend(backend.server_type)
         else:
             raise ValueError("Invalid backend argument")
 
         # Determine server and backend instance
         if server not in (None, True, False):
             # User provided a server instance (e.g., Flask, Quart, FastAPI)
-            if _is_flask_instance(server):
-                inferred_backend = "flask"
-            elif _is_quart_instance(server):
-                inferred_backend = "quart"
-            elif _is_fastapi_instance(server):
-                inferred_backend = "fastapi"
-            else:
-                raise ValueError("Unsupported server type")
-            # Validate that backend matches server type if both are provided
+            inferred_backend = get_server_type(server)
             if backend is not None:
                 if isinstance(backend, type):
                     # get_backend returns the backend class for a string
                     # So we compare the class names
-                    expected_backend_cls = get_backend(inferred_backend)
+                    expected_backend_cls, _ = get_backend(inferred_backend)
                     if (
                         backend.__module__ != expected_backend_cls.__module__
                         or backend.__name__ != expected_backend_cls.__name__
@@ -505,15 +508,19 @@ class Dash(ObsoleteChecker):
                     raise ValueError(
                         f"Conflict between provided backend '{backend}' and server type '{inferred_backend}'."
                     )
-            backend_cls = get_backend(inferred_backend)
+            backend_cls, request_cls = get_backend(inferred_backend)
             if name is None:
                 caller_name = getattr(server, "name", caller_name)
-            self.backend = backend_cls()
+            self.backend = backend_cls(server)
             self.server = server
+            backends.backend = self.backend  # type: ignore
+            backends.request_adapter = request_cls
         else:
             # No server instance provided, create backend and let backend create server
-            self.backend = backend_cls()
-            self.server = self.backend.create_app(caller_name)  # type: ignore
+            self.server = backend_cls.create_app(caller_name)  # type: ignore
+            self.backend = backend_cls(self.server)
+            backends.backend = self.backend  # type: ignore
+            backends.request_adapter = request_cls
 
         base_prefix, routes_prefix, requests_prefix = pathname_configs(
             url_base_pathname, routes_pathname_prefix, requests_pathname_prefix
@@ -1043,9 +1050,11 @@ class Dash(ObsoleteChecker):
 
         return "\n".join(
             [
-                format_tag("link", link, opened=True)
-                if isinstance(link, dict)
-                else f'<link rel="stylesheet" href="{link}">'
+                (
+                    format_tag("link", link, opened=True)
+                    if isinstance(link, dict)
+                    else f'<link rel="stylesheet" href="{link}">'
+                )
                 for link in (external_links + links)
             ]
         )
@@ -1099,9 +1108,11 @@ class Dash(ObsoleteChecker):
 
         return "\n".join(
             [
-                format_tag("script", src)
-                if isinstance(src, dict)
-                else f'<script src="{src}"></script>'
+                (
+                    format_tag("script", src)
+                    if isinstance(src, dict)
+                    else f'<script src="{src}"></script>'
+                )
                 for src in srcs
             ]
             + [f"<script>{src}</script>" for src in self._inline_scripts]
@@ -1139,11 +1150,8 @@ class Dash(ObsoleteChecker):
         metas = self._generate_meta()
         renderer = self._generate_renderer()
         title = self.title
-        try:
-            request = get_request_adapter()
-        except LookupError:
-            # no request context
-            request = None
+        # Refactored: direct access to global request adapter
+        request = backends.request_adapter()
 
         if self.use_pages and self.config.include_pages_meta and request:
             metas = _page_meta_tags(self, request) + metas
@@ -1357,8 +1365,9 @@ class Dash(ObsoleteChecker):
         return inputs_to_vals(inputs)
 
     # pylint: disable=R0915
-    def _initialize_context(self, body, adapter):
+    def _initialize_context(self, body):
         """Initialize the global context for the request."""
+        adapter = backends.request_adapter()
         g = AttributeDict({})
         g.inputs_list = body.get("inputs", [])
         g.states_list = body.get("state", [])
@@ -1372,12 +1381,12 @@ class Dash(ObsoleteChecker):
         g.dash_response = self.backend.make_response(
             mimetype="application/json", data=None
         )
-        g.cookies = dict(adapter.get_cookies())
-        g.headers = dict(adapter.get_headers())
-        g.args = adapter.get_args()
-        g.path = adapter.get_full_path()
-        g.remote = adapter.get_remote_addr()
-        g.origin = adapter.get_origin()
+        g.cookies = dict(adapter.cookies)
+        g.headers = dict(adapter.headers)
+        g.args = adapter.args
+        g.path = adapter.full_path
+        g.remote = adapter.remote_addr
+        g.origin = adapter.origin
         g.updated_props = {}
         return g
 
@@ -1964,15 +1973,21 @@ class Dash(ObsoleteChecker):
                         packages[index] = dash_spec
 
             component_packages_dist = [
-                dash_test_path  # type: ignore[reportPossiblyUnboundVariable]
-                if isinstance(package, ModuleSpec)
-                else os.path.dirname(package.path)  # type: ignore[reportAttributeAccessIssue]
-                if hasattr(package, "path")
-                else os.path.dirname(
-                    package._path[0]  # type: ignore[reportAttributeAccessIssue]; pylint: disable=protected-access
-                )
-                if hasattr(package, "_path")
-                else package.filename  # type: ignore[reportAttributeAccessIssue]
+                (
+                    dash_test_path  # type: ignore[reportPossiblyUnboundVariable]
+                    if isinstance(package, ModuleSpec)
+                    else (
+                        os.path.dirname(package.path)  # type: ignore[reportAttributeAccessIssue]
+                        if hasattr(package, "path")
+                        else (
+                            os.path.dirname(
+                                package._path[0]  # type: ignore[reportAttributeAccessIssue]; pylint: disable=protected-access
+                            )
+                            if hasattr(package, "_path")
+                            else package.filename
+                        )
+                    )
+                )  # type: ignore[reportAttributeAccessIssue]
                 for package in packages
             ]
 
@@ -2368,9 +2383,11 @@ class Dash(ObsoleteChecker):
                 if not self.config.suppress_callback_exceptions:
                     self.validation_layout = html.Div(
                         [
-                            asyncio.run(execute_async_function(page["layout"]))
-                            if callable(page["layout"])
-                            else page["layout"]
+                            (
+                                asyncio.run(execute_async_function(page["layout"]))
+                                if callable(page["layout"])
+                                else page["layout"]
+                            )
                             for page in _pages.PAGE_REGISTRY.values()
                         ]
                         + [
@@ -2439,9 +2456,11 @@ class Dash(ObsoleteChecker):
                         ]
                         self.validation_layout = html.Div(
                             [
-                                page["layout"]()
-                                if callable(page["layout"])
-                                else page["layout"]
+                                (
+                                    page["layout"]()
+                                    if callable(page["layout"])
+                                    else page["layout"]
+                                )
                                 for page in _pages.PAGE_REGISTRY.values()
                             ]
                             + layout
@@ -2463,4 +2482,4 @@ class Dash(ObsoleteChecker):
         self.backend.before_request(self.server, router)
 
     def __call__(self, *args, **kwargs):
-        return self.backend.__call__(self.server, *args, **kwargs)
+        return self.backend.__call__(*args, **kwargs)
