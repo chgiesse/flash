@@ -1,4 +1,5 @@
 from contextvars import copy_context, ContextVar
+from typing import TYPE_CHECKING
 import sys
 import mimetypes
 import hashlib
@@ -18,6 +19,9 @@ from starlette.responses import Response as StarletteResponse
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Scope, Receive, Send
 import uvicorn
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from dash import Dash
 
 
 _current_request_var = ContextVar("dash_current_request", default=None)
@@ -116,14 +120,14 @@ class FastAPIDashServer(BaseDashServer):
 
         return wrapped
 
-    def setup_index(self, dash_app):
+    def setup_index(self, dash_app: Dash):
         async def index(request: Request):
             return Response(content=dash_app.index(), media_type="text/html")
 
         # pylint: disable=protected-access
         dash_app._add_url("", index, methods=["GET"])
 
-    def setup_catchall(self, dash_app):
+    def setup_catchall(self, dash_app: Dash):
         @self.server.on_event("startup")
         def _setup_catchall():
             dash_app.enable_dev_tools(
@@ -210,7 +214,7 @@ class FastAPIDashServer(BaseDashServer):
         return middleware
 
     def serve_component_suites(
-        self, dash_app, package_name, fingerprinted_path, request
+        self, dash_app: Dash, package_name, fingerprinted_path, request
     ):
 
         path_in_pkg, has_fingerprint = check_fingerprint(fingerprinted_path)
@@ -236,7 +240,7 @@ class FastAPIDashServer(BaseDashServer):
             return StarletteResponse(status_code=304)
         return StarletteResponse(content=data, media_type=mimetype, headers=headers)
 
-    def setup_component_suites(self, dash_app):
+    def setup_component_suites(self, dash_app: Dash):
         async def serve(request: Request, package_name: str, fingerprinted_path: str):
             return self.serve_component_suites(
                 dash_app, package_name, fingerprinted_path, request
@@ -249,7 +253,7 @@ class FastAPIDashServer(BaseDashServer):
         )
 
     # pylint: disable=unused-argument
-    def dispatch(self, dash_app):
+    def dispatch(self, dash_app: Dash):
 
         async def _dispatch(request: Request):
             # pylint: disable=protected-access

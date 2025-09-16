@@ -1,4 +1,5 @@
 from contextvars import copy_context
+from typing import TYPE_CHECKING
 import asyncio
 import pkgutil
 import sys
@@ -10,6 +11,8 @@ from dash.fingerprint import check_fingerprint
 from dash import _validate
 from dash.exceptions import PreventUpdate, InvalidResourceError
 from dash import backends
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from dash import Dash
 from .base_server import BaseDashServer, RequestAdapter
 
 
@@ -80,21 +83,21 @@ class FlaskDashServer(BaseDashServer):
     def get_request_adapter(self):
         return FlaskRequestAdapter
 
-    def setup_catchall(self, dash_app):
+    def setup_catchall(self, dash_app: Dash):
         def catchall(*args, **kwargs):
             return dash_app.index(*args, **kwargs)
 
         # pylint: disable=protected-access
         dash_app._add_url("<path:path>", catchall, methods=["GET"])
 
-    def setup_index(self, dash_app):
+    def setup_index(self, dash_app: Dash):
         def index(*args, **kwargs):
             return dash_app.index(*args, **kwargs)
 
         # pylint: disable=protected-access
         dash_app._add_url("", index, methods=["GET"])
 
-    def serve_component_suites(self, dash_app, package_name, fingerprinted_path):
+    def serve_component_suites(self, dash_app: Dash, package_name, fingerprinted_path):
         path_in_pkg, has_fingerprint = check_fingerprint(fingerprinted_path)
         _validate.validate_js_path(dash_app.registered_paths, package_name, path_in_pkg)
         extension = "." + path_in_pkg.split(".")[-1]

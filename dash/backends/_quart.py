@@ -16,7 +16,6 @@ from quart import (
     request,
     Blueprint,
     g,
-    Request,
 )
 
 if TYPE_CHECKING:
@@ -209,7 +208,7 @@ class QuartDashServer(BaseDashServer):
         )
 
     # pylint: disable=unused-argument
-    def dispatch(self, dash_app: "Dash"):  # type: ignore[name-defined] Quart always async
+    def dispatch(self, dash_app: Dash):  # type: ignore[name-defined] Quart always async
 
         async def _dispatch():
             adapter = QuartRequestAdapter()
