@@ -8,7 +8,14 @@ import sys
 import mimetypes
 import time
 import inspect
-import flask
+from flask import (
+    Flask,
+    Blueprint,
+    Response,
+    request,
+    jsonify,
+    g as flask_g,
+)
 
 from dash.fingerprint import check_fingerprint
 from dash import _validate
@@ -21,8 +28,8 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 class FlaskDashServer(BaseDashServer):
 
-    def __init__(self, server: flask.Flask) -> None:
-        self.server: flask.Flask = server
+    def __init__(self, server: Flask) -> None:
+        self.server: Flask = server
         self.server_type = "flask"
         super().__init__()
 
@@ -32,7 +39,7 @@ class FlaskDashServer(BaseDashServer):
 
     @staticmethod
     def create_app(name: str = "__main__", config: Dict[str, Any] | None = None):
-        app = flask.Flask(name)
+        app = Flask(name)
         if config:
             app.config.update(config)
         return app
@@ -40,7 +47,7 @@ class FlaskDashServer(BaseDashServer):
     def register_assets_blueprint(
         self, blueprint_name: str, assets_url_path: str, assets_folder: str
     ):
-        bp = flask.Blueprint(
+        bp = Blueprint(
             blueprint_name,
             __name__,
             static_folder=assets_folder,
@@ -91,10 +98,10 @@ class FlaskDashServer(BaseDashServer):
         mimetype: str | None = None,
         content_type: str | None = None,
     ):
-        return flask.Response(data, mimetype=mimetype, content_type=content_type)
+        return Response(data, mimetype=mimetype, content_type=content_type)
 
     def jsonify(self, obj: Any):
-        return flask.jsonify(obj)
+        return jsonify(obj)
 
     def setup_catchall(self, dash_app: Dash):
         def catchall(*args, **kwargs):
@@ -126,15 +133,15 @@ class FlaskDashServer(BaseDashServer):
             package.__path__,
         )
         data = pkgutil.get_data(package_name, path_in_pkg)
-        response = flask.Response(data, mimetype=mimetype)
+        response = Response(data, mimetype=mimetype)
         if has_fingerprint:
             response.cache_control.max_age = 31536000  # 1 year
         else:
             response.add_etag()
             tag = response.get_etag()[0]
-            request_etag = flask.request.headers.get("If-None-Match")
+            request_etag = request.headers.get("If-None-Match")
             if f'"{tag}"' == request_etag:
-                response = flask.Response(None, status=304)
+                response = Response(None, status=304)
         return response
 
     def setup_component_suites(self, dash_app: Dash):
@@ -152,13 +159,13 @@ class FlaskDashServer(BaseDashServer):
     # pylint: disable=unused-argument
     def dispatch(self, dash_app: Dash):
         def _dispatch():
-            body = flask.request.get_json()
+            body = request.get_json()
             # pylint: disable=protected-access
-            g = dash_app._initialize_context(body)
-            func = dash_app._prepare_callback(g, body)
-            args = dash_app._inputs_to_vals(g.inputs_list + g.states_list)
+            cb_ctx = dash_app._initialize_context(body)
+            func = dash_app._prepare_callback(cb_ctx, body)
+            args = dash_app._inputs_to_vals(cb_ctx.inputs_list + cb_ctx.states_list)
             ctx = copy_context()
-            partial_func = dash_app._execute_callback(func, args, g.outputs_list, g)
+            partial_func = dash_app._execute_callback(func, args, cb_ctx.outputs_list, cb_ctx)
             response_data = ctx.run(partial_func)
             if asyncio.iscoroutine(response_data):
                 raise Exception(
@@ -166,42 +173,41 @@ class FlaskDashServer(BaseDashServer):
                     "Please install the dependencies via `pip install dash[async]` and ensure "
                     "that `use_async=False` is not being passed to the app."
                 )
-            g.dash_response.set_data(response_data)
-            return g.dash_response
+            cb_ctx.dash_response.set_data(response_data)
+            return cb_ctx.dash_response
 
         async def _dispatch_async():
-            body = flask.request.get_json()
+            body = request.get_json()
             # pylint: disable=protected-access
-            g = dash_app._initialize_context(body)
-            func = dash_app._prepare_callback(g, body)
-            args = dash_app._inputs_to_vals(g.inputs_list + g.states_list)
+            cb_ctx = dash_app._initialize_context(body)
+            func = dash_app._prepare_callback(cb_ctx, body)
+            args = dash_app._inputs_to_vals(cb_ctx.inputs_list + cb_ctx.states_list)
             ctx = copy_context()
-            partial_func = dash_app._execute_callback(func, args, g.outputs_list, g)
+            partial_func = dash_app._execute_callback(func, args, cb_ctx.outputs_list, cb_ctx)
             response_data = ctx.run(partial_func)
             if asyncio.iscoroutine(response_data):
                 response_data = await response_data
-            g.dash_response.set_data(response_data)
-            return g.dash_response
+            cb_ctx.dash_response.set_data(response_data)
+            return cb_ctx.dash_response
 
         if getattr(dash_app, "_use_async", False):
             return _dispatch_async
         return _dispatch
 
     def _serve_default_favicon(self):
-
-        return flask.Response(
+        return Response(
             pkgutil.get_data("dash", "favicon.ico"), content_type="image/x-icon"
         )
 
     def register_timing_hooks(self, _first_run: bool):
         # Define timing hooks inside method scope and register them
         def _before_request() -> None:
-            flask.g.timing_information = {  # type: ignore[attr-defined]
+            flask_g.timing_information = {  # type: ignore[attr-defined]
                 "__dash_server": {"dur": time.time(), "desc": None}
             }
 
-        def _after_request(response: flask.Response):  # type: ignore[name-defined]
-            timing_information = flask.g.get("timing_information", None)  # type: ignore[attr-defined]
+        def _after_request(response: Response):  # type: ignore[name-defined]
+            timing_information = flask_g.get("timing_information", None)  # type: ignore[attr-defined]
             if timing_information is None:
                 return response
             dash_total = timing_information.get("__dash_server", None)
@@ -233,17 +239,17 @@ class FlaskDashServer(BaseDashServer):
             if inspect.iscoroutinefunction(handler):
 
                 async def _async_view_func(*args, handler=handler, **kwargs):
-                    data = flask.request.get_json()
+                    data = request.get_json()
                     result = await handler(**data) if data else await handler()
-                    return flask.jsonify(result)
+                    return jsonify(result)
 
                 view_func = _async_view_func
             else:
 
                 def _sync_view_func(*args, handler=handler, **kwargs):
-                    data = flask.request.get_json()
+                    data = request.get_json()
                     result = handler(**data) if data else handler()
-                    return flask.jsonify(result)
+                    return jsonify(result)
 
                 view_func = _sync_view_func
 
@@ -256,9 +262,9 @@ class FlaskDashServer(BaseDashServer):
 class FlaskRequestAdapter(RequestAdapter):
     """Flask implementation using property-based accessors."""
 
-    def __init__(self, server: flask.Flask) -> None:
-        self.server_type = "flask"
-        self.server: flask.Flask = server
+    def __init__(self) -> None:
+        # Store the request LocalProxy so we can reference it consistently
+        self._request = request
         super().__init__()
 
     def __call__(self, *args: Any, **kwds: Any):
@@ -266,43 +272,43 @@ class FlaskRequestAdapter(RequestAdapter):
 
     @property
     def args(self):
-        return flask.request.args
+        return self._request.args
 
     @property
     def root(self):
-        return flask.request.url_root
+        return self._request.url_root
 
     def get_json(self):  # kept as method
-        return flask.request.get_json()
+        return self._request.get_json()
 
     @property
     def is_json(self):
-        return flask.request.is_json
+        return self._request.is_json
 
     @property
     def cookies(self):
-        return flask.request.cookies
+        return self._request.cookies
 
     @property
     def headers(self):
-        return flask.request.headers
+        return self._request.headers
 
     @property
     def url(self):
-        return flask.request.url
+        return self._request.url
 
     @property
     def full_path(self):
-        return flask.request.full_path
+        return self._request.full_path
 
     @property
     def remote_addr(self):
-        return flask.request.remote_addr
+        return self._request.remote_addr
 
     @property
     def origin(self):
-        return getattr(flask.request, "origin", None)
+        return getattr(self._request, "origin", None)
 
     @property
     def path(self):
-        return flask.request.path
+        return self._request.path
