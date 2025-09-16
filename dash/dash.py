@@ -474,21 +474,7 @@ class Dash(ObsoleteChecker):
         **obsolete,
     ):
 
-        if use_async is None:
-            try:
-                import asgiref  # pylint: disable=unused-import, import-outside-toplevel # noqa
-
-                use_async = True
-            except ImportError:
-                pass
-        elif use_async:
-            try:
-                import asgiref  # pylint: disable=unused-import, import-outside-toplevel # noqa
-            except ImportError as exc:
-                raise Exception(
-                    "You are trying to use dash[async] without having installed the requirements please install via: `pip install dash[async]`"
-                ) from exc
-
+        _validate.check_async(use_async)
         _validate.check_obsolete(obsolete)
 
         caller_name: str = name if name is not None else get_caller_name()
@@ -508,24 +494,7 @@ class Dash(ObsoleteChecker):
         if server not in (None, True, False):
             # User provided a server instance (e.g., Flask, Quart, FastAPI)
             inferred_backend = backends.get_server_type(server)
-            if backend is not None:
-                if isinstance(backend, type):
-                    # get_backend returns the backend class for a string
-                    # So we compare the class names
-                    expected_backend_cls, _ = get_backend(inferred_backend)
-                    if (
-                        backend.__module__ != expected_backend_cls.__module__
-                        or backend.__name__ != expected_backend_cls.__name__
-                    ):
-                        raise ValueError(
-                            f"Conflict between provided backend '{backend.__name__}' and server type '{inferred_backend}'."
-                        )
-                elif not isinstance(backend, str):
-                    raise ValueError("Invalid backend argument")
-                elif backend.lower() != inferred_backend:
-                    raise ValueError(
-                        f"Conflict between provided backend '{backend}' and server type '{inferred_backend}'."
-                    )
+            _validate.check_backend(backend, inferred_backend)
             backend_cls, request_cls = get_backend(inferred_backend)
             if name is None:
                 caller_name = getattr(server, "name", caller_name)
@@ -538,7 +507,7 @@ class Dash(ObsoleteChecker):
             # No server instance provided, create backend and let backend create server
             self.server = backend_cls.create_app(caller_name)  # type: ignore
             self.backend = backend_cls(self.server)
-            backends.backend = self.backend  # type: ignore
+            backends.backend = self.backend
             backends.request_adapter = request_cls
 
         base_prefix, routes_prefix, requests_prefix = pathname_configs(
