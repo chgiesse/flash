@@ -82,8 +82,6 @@ class FlaskDashServer(BaseDashServer):
 
     def setup_catchall(self, dash_app):
         def catchall(*args, **kwargs):
-            adapter = FlaskRequestAdapter()
-            backends.request_adapter = adapter
             return dash_app.index(*args, **kwargs)
 
         # pylint: disable=protected-access
@@ -91,8 +89,6 @@ class FlaskDashServer(BaseDashServer):
 
     def setup_index(self, dash_app):
         def index(*args, **kwargs):
-            adapter = FlaskRequestAdapter()
-            backends.request_adapter = adapter
             return dash_app.index(*args, **kwargs)
 
         # pylint: disable=protected-access
@@ -136,7 +132,7 @@ class FlaskDashServer(BaseDashServer):
         )
 
     # pylint: disable=unused-argument
-    def dispatch(self, dash_app, use_async=False):
+    def dispatch(self, dash_app):
         def _dispatch():
             body = flask.request.get_json()
             # pylint: disable=protected-access
@@ -169,7 +165,7 @@ class FlaskDashServer(BaseDashServer):
             g.dash_response.set_data(response_data)
             return g.dash_response
 
-        if use_async:
+        if getattr(dash_app, "_use_async", False):
             return _dispatch_async
         return _dispatch
 

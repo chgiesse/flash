@@ -249,7 +249,7 @@ class FastAPIDashServer(BaseDashServer):
         )
 
     # pylint: disable=unused-argument
-    def dispatch(self, dash_app, use_async=False):
+    def dispatch(self, dash_app):
 
         async def _dispatch(request: Request):
             # pylint: disable=protected-access

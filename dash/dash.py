@@ -750,7 +750,7 @@ class Dash(ObsoleteChecker):
         self._add_url("_dash-dependencies", self.dependencies)
         self._add_url(
             "_dash-update-component",
-            self.backend.dispatch(self, self._use_async),
+            self.backend.dispatch(self),
             ["POST"],
         )
         self._add_url("_reload-hash", self.serve_reload_hash)
