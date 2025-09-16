@@ -155,46 +155,6 @@ except:  # noqa: E722
     page_container = None
 
 
-def _is_flask_instance(obj):
-    try:
-        # pylint: disable=import-outside-toplevel
-        from flask import Flask
-
-        return isinstance(obj, Flask)
-    except ImportError:
-        return False
-
-
-def _is_fastapi_instance(obj):
-    try:
-        # pylint: disable=import-outside-toplevel
-        from fastapi import FastAPI
-
-        return isinstance(obj, FastAPI)
-    except ImportError:
-        return False
-
-
-def _is_quart_instance(obj):
-    try:
-        # pylint: disable=import-outside-toplevel
-        from quart import Quart
-
-        return isinstance(obj, Quart)
-    except ImportError:
-        return False
-
-
-def get_server_type(server):
-    if _is_flask_instance(server):
-        return "flask"
-    if _is_quart_instance(server):
-        return "quart"
-    if _is_fastapi_instance(server):
-        return "fastapi"
-    raise ValueError("Invalid backend argument")
-
-
 def _get_traceback(secret, error: Exception):
     try:
         # pylint: disable=import-outside-toplevel
@@ -547,7 +507,7 @@ class Dash(ObsoleteChecker):
         # Determine server and backend instance
         if server not in (None, True, False):
             # User provided a server instance (e.g., Flask, Quart, FastAPI)
-            inferred_backend = get_server_type(server)
+            inferred_backend = backends.get_server_type(server)
             if backend is not None:
                 if isinstance(backend, type):
                     # get_backend returns the backend class for a string
