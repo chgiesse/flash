@@ -44,7 +44,7 @@ class BaseDashServer(ABC):
 
     @abstractmethod
     def run(
-        self, host: str, port: int, debug: bool, **kwargs
+        self, dash_app, host: str, port: int, debug: bool, **kwargs
     ) -> None:  # pragma: no cover - interface
         pass
 

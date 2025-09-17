@@ -1,7 +1,6 @@
 from __future__ import annotations
 from contextvars import copy_context
 import typing as _t
-from typing import Any, Optional, TYPE_CHECKING
 import traceback
 import mimetypes
 import inspect
@@ -42,7 +41,7 @@ class QuartDashServer(BaseDashServer):
         return self.server(*args, **kwargs)
 
     @staticmethod
-    def create_app(name: str = "__main__", config: _t.Optional[_t.Dict[str, Any]] = None):
+    def create_app(name: str = "__main__", config: _t.Optional[_t.Dict[str, _t.Any]] = None):
         if Quart is None:
             raise RuntimeError(
                 "Quart is not installed. Install with 'pip install quart' to use the quart backend."
@@ -196,7 +195,6 @@ class QuartDashServer(BaseDashServer):
 
         @self.server.after_request
         async def _after_request(response):  # pragma: no cover - timing infra
-
             timing_information = (
                 getattr(g, "timing_information", None) if g is not None else None
             )
@@ -227,7 +225,7 @@ class QuartDashServer(BaseDashServer):
         async def _invalid_resource(err):
             return err.args[0], 404
 
-    def _html_response_wrapper(self, view_func):
+    def _html_response_wrapper(self, view_func: _t.Callable[..., _t.Any] | str):
 
         async def wrapped(*_args, **_kwargs):
             html_val = view_func() if callable(view_func) else view_func
@@ -238,7 +236,13 @@ class QuartDashServer(BaseDashServer):
 
         return wrapped
 
-    def add_url_rule(self, rule, view_func, endpoint=None, methods=None):
+    def add_url_rule(
+        self,
+        rule: str,
+        view_func: _t.Callable[..., _t.Any],
+        endpoint: str | None = None,
+        methods: list[str] | None = None,
+    ):
         self.server.add_url_rule(
             rule, view_func=view_func, endpoint=endpoint, methods=methods or ["GET"]
         )
@@ -254,17 +258,17 @@ class QuartDashServer(BaseDashServer):
     def setup_catchall(self, dash_app: Dash):
 
         async def catchall(
-            path, *args, **kwargs
+            path: str, *args, **kwargs
         ):  # noqa: ARG001 - path is unused but kept for route signature, pylint: disable=unused-argument
             return Response(dash_app.index(*args, **kwargs), content_type="text/html")  # type: ignore[arg-type]
 
         # pylint: disable=protected-access
         dash_app._add_url("<path:path>", catchall, methods=["GET"])
 
-    def before_request(self, func):
+    def before_request(self, func: _t.Callable[[], _t.Any]):
         self.server.before_request(func)
 
-    def after_request(self, func):
+    def after_request(self, func: _t.Callable[[], _t.Any]):
         @self.server.after_request
         async def _after(response):
             if func is not None:
@@ -273,18 +277,21 @@ class QuartDashServer(BaseDashServer):
                     await result
             return response
 
-    def run(self, host, port, debug, **kwargs):
+    def run(self, dash_app: Dash, host: str, port: int, debug: bool, **kwargs: _t.Any):
         self.config = {"debug": debug, **kwargs} if debug else kwargs
         self.server.run(host=host, port=port, debug=debug, **kwargs)
 
-    def make_response(self, data, mimetype=None, content_type=None):
+    def make_response(
+        self,
+        data: str | bytes | bytearray,
+        mimetype: str | None = None,
+        content_type: str | None = None,
+    ):
         if Response is None:
             raise RuntimeError("Quart not installed; cannot generate Response")
         return Response(data, mimetype=mimetype, content_type=content_type)
 
     def jsonify(self, obj):
-        if jsonify is None:
-            raise RuntimeError("Quart not installed; cannot jsonify")
         return jsonify(obj)
 
     def serve_component_suites(
@@ -345,7 +352,7 @@ class QuartDashServer(BaseDashServer):
 
         return _dispatch
 
-    def register_callback_api_routes(self, callback_api_paths):
+    def register_callback_api_routes(self, callback_api_paths: _t.Dict[str, _t.Callable[..., _t.Any]]):
         """
         Register callback API endpoints on the Quart app.
         Each key in callback_api_paths is a route, each value is a handler (sync or async).
@@ -399,7 +406,7 @@ class QuartRequestAdapter:
             raise RuntimeError("Quart not installed; cannot access request context")
 
     @property
-    def request(self) -> Any:
+    def request(self) -> _t.Any:
         return self._request
 
     @property

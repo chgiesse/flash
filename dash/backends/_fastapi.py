@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from contextvars import copy_context, ContextVar
+from typing import TYPE_CHECKING, Any, Callable, Dict
 import sys
 import mimetypes
 import hashlib
@@ -7,22 +10,26 @@ import pkgutil
 import time
 import traceback
 import importlib
+from importlib.util import spec_from_file_location
 import json
 import os
 import re
 
 from dash.fingerprint import check_fingerprint
 from dash import _validate
-from dash.exceptions import PreventUpdate, InvalidResourceError
+from dash.exceptions import PreventUpdate
 from .base_server import BaseDashServer, RequestAdapter
 
 from fastapi import FastAPI, Request, Response, Body
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response as StarletteResponse
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Scope, Receive, Send
 import uvicorn
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from dash.dash import Dash
 
 
 _current_request_var = ContextVar("dash_current_request", default=None)
@@ -60,6 +67,7 @@ class CurrentRequestMiddleware:
         finally:
             reset_current_request(token)
 
+
 CONFIG_PATH = "dash_config.json"
 
 
@@ -91,7 +99,7 @@ class FastAPIDashServer(BaseDashServer):
         raise TypeError("FastAPI app must be called with (scope, receive, send)")
 
     @staticmethod
-    def create_app(name="__main__", config=None):
+    def create_app(name: str = "__main__", config: Dict[str, Any] | None = None):
         app = FastAPI()
         app.add_middleware(CurrentRequestMiddleware)
 
@@ -101,7 +109,7 @@ class FastAPIDashServer(BaseDashServer):
         return app
 
     def register_assets_blueprint(
-        self, blueprint_name, assets_url_path, assets_folder
+        self, blueprint_name: str, assets_url_path: str, assets_folder: str
     ):
         try:
             self.server.mount(
@@ -239,18 +247,19 @@ class FastAPIDashServer(BaseDashServer):
 
         return wrapped
 
-    def setup_index(self, dash_app):
+    def setup_index(self, dash_app: Dash):
         async def index(request: Request):
             return Response(content=dash_app.index(), media_type="text/html")
 
         # pylint: disable=protected-access
         dash_app._add_url("", index, methods=["GET"])
 
-    def setup_catchall(self, dash_app):
+    def setup_catchall(self, dash_app: Dash):
         @self.server.on_event("startup")
         def _setup_catchall():
-            config = load_config()
-            dash_app.enable_dev_tools(**config, first_run=False)
+            dash_app.enable_dev_tools(
+                **self.config, first_run=False
+            )  # do this to make sure dev tools are enabled
 
             async def catchall(request: Request):
                 return Response(content=dash_app.index(), media_type="text/html")
@@ -259,7 +268,12 @@ class FastAPIDashServer(BaseDashServer):
             dash_app._add_url("{path:path}", catchall, methods=["GET"])
 
     def add_url_rule(
-        self, rule, view_func, endpoint=None, methods=None, include_in_schema=False
+        self,
+        rule: str,
+        view_func: Callable[..., Any] | str,
+        endpoint: str | None = None,
+        methods: list[str] | None = None,
+        include_in_schema: bool = False,
     ):
         if rule == "":
             rule = "/"
@@ -282,22 +296,23 @@ class FastAPIDashServer(BaseDashServer):
         # FastAPI does not have after_request, but we can use middleware
         self.server.middleware("http")(self._make_after_middleware(func))
 
-    def run(self, host, port, debug, **kwargs):
+    def run(self, dash_app: Dash, host, port, debug, **kwargs):
         frame = inspect.stack()[2]
-        # config = dict(
-        #     {"debug": debug} if debug else {},
-        #     **{
-        #         f"dev_tools_{k}": v for k, v in dash_app._dev_tools.items()
-        #     },  # pylint: disable=protected-access
-        # )
-        # save_config(config)
+        config = dict(
+            {"debug": debug} if debug else {},
+            **{
+                f"dev_tools_{k}": v for k, v in dash_app._dev_tools.items()
+            },  # pylint: disable=protected-access
+        )
+        save_config(config)
         if debug:
             if kwargs.get("reload") is None:
                 kwargs["reload"] = True
         if kwargs.get("reload"):
             # Dynamically determine the module name from the file path
             file_path = frame.filename
-            module_name = importlib.util.spec_from_file_location("app", file_path).name
+            spec = spec_from_file_location("app", file_path)
+            module_name = spec.name if spec and getattr(spec, "name", None) else "app"
             uvicorn.run(
                 f"{module_name}:app.server",
                 host=host,
@@ -351,7 +366,11 @@ class FastAPIDashServer(BaseDashServer):
         return middleware
 
     def serve_component_suites(
-        self, dash_app, package_name, fingerprinted_path, request
+        self,
+        dash_app: Dash,
+        package_name: str,
+        fingerprinted_path: str,
+        request: Request,
     ):
 
         path_in_pkg, has_fingerprint = check_fingerprint(fingerprinted_path)
@@ -377,7 +396,7 @@ class FastAPIDashServer(BaseDashServer):
             return StarletteResponse(status_code=304)
         return StarletteResponse(content=data, media_type=mimetype, headers=headers)
 
-    def setup_component_suites(self, dash_app):
+    def setup_component_suites(self, dash_app: Dash):
         async def serve(request: Request, package_name: str, fingerprinted_path: str):
             return self.serve_component_suites(
                 dash_app, package_name, fingerprinted_path, request
@@ -390,7 +409,7 @@ class FastAPIDashServer(BaseDashServer):
         )
 
     # pylint: disable=unused-argument
-    def dispatch(self, app, dash_app, use_async=False):
+    def dispatch(self, dash_app: Dash):
 
         async def _dispatch(request: Request):
             # pylint: disable=protected-access
@@ -419,11 +438,11 @@ class FastAPIDashServer(BaseDashServer):
             content=pkgutil.get_data("dash", "favicon.ico"), media_type="image/x-icon"
         )
 
-    def register_timing_hooks(self, app, first_run):
+    def register_timing_hooks(self, first_run: bool):
         if not first_run:
             return
 
-        @app.middleware("http")
+        @self.server.middleware("http")
         async def timing_middleware(request: Request, call_next):
             # Before request
             request.state.timing_information = {
@@ -446,7 +465,7 @@ class FastAPIDashServer(BaseDashServer):
                     headers.append("Server-Timing", value)
             return response
 
-    def register_callback_api_routes(self, app, callback_api_paths):
+    def register_callback_api_routes(self, callback_api_paths: Dict[str, Callable[..., Any]]):
         """
         Register callback API endpoints on the FastAPI app.
         Each key in callback_api_paths is a route, each value is a handler (sync or async).
@@ -470,7 +489,7 @@ class FastAPIDashServer(BaseDashServer):
                     result = handler(**kwargs)
                 return JSONResponse(content=result)
 
-            app.add_api_route(
+            self.server.add_api_route(
                 route,
                 view_func,
                 methods=methods,
