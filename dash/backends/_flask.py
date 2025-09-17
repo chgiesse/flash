@@ -291,6 +291,8 @@ class FlaskDashServer(BaseDashServer):
 
                 view_func = _sync_view_func
 
+                view_func = _sync_view_func
+
             # Flask 2.x+ supports async views natively
             self.server.add_url_rule(
                 route, endpoint=endpoint, view_func=view_func, methods=methods

@@ -185,7 +185,6 @@ class QuartDashServer(BaseDashServer):
             return Response(tb, status=500, content_type="text/html")
 
     def register_timing_hooks(self, _first_run):  # type: ignore[name-defined] parity with Flask factory
-
         @self.server.before_request
         async def _before_request():  # pragma: no cover - timing infra
             if g is not None:
