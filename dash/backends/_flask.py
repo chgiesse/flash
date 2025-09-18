@@ -16,6 +16,7 @@ from flask import (
     request,
     jsonify,
     g as flask_g,
+    has_request_context,
 )
 from werkzeug.debug import tbtools
 
@@ -126,6 +127,9 @@ class FlaskDashServer(BaseDashServer):
     def after_request(self, func: Callable[[Any], Any]):
         # Flask after_request expects a function(response) -> response
         self.server.after_request(func)
+
+    def has_request_context(self) -> bool:
+        return has_request_context()
 
     def run(self, dash_app: Dash, host: str, port: int, debug: bool, **kwargs: Any):
         self.server.run(host=host, port=port, debug=debug, **kwargs)

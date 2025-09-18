@@ -221,6 +221,13 @@ class FastAPIDashServer(BaseDashServer):
         # FastAPI does not have after_request, but we can use middleware
         self.server.middleware("http")(self._make_after_middleware(func))
 
+    def has_request_context(self) -> bool:
+        try:
+            get_current_request()
+            return True
+        except RuntimeError:
+            return False
+
     def run(self, dash_app: Dash, host, port, debug, **kwargs):
         frame = inspect.stack()[2]
         dev_tools = dash_app._dev_tools  # pylint: disable=protected-access

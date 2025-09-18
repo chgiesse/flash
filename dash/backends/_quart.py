@@ -16,7 +16,8 @@ try:
         jsonify,
         request,
         Blueprint,
-        g,
+        g as quart_g,
+        has_request_context
     )
 except ImportError:
     Quart = None
@@ -24,7 +25,7 @@ except ImportError:
     jsonify = None
     request = None
     Blueprint = None
-    g = None
+    quart_g = None
 
 from dash.exceptions import PreventUpdate, InvalidResourceError
 from dash.fingerprint import check_fingerprint
@@ -92,17 +93,18 @@ class QuartDashServer(BaseDashServer):
             return Response(tb, status=500, content_type="text/html")
 
     def register_timing_hooks(self, _first_run: bool):  # type: ignore[name-defined] parity with Flask factory
+
         @self.server.before_request
         async def _before_request():  # pragma: no cover - timing infra
-            if g is not None:
-                g.timing_information = {  # type: ignore[attr-defined]
+            if quart_g is not None:
+                quart_g.timing_information = {  # type: ignore[attr-defined]
                     "__dash_server": {"dur": time.time(), "desc": None}
                 }
 
         @self.server.after_request
         async def _after_request(response):  # pragma: no cover - timing infra
             timing_information = (
-                getattr(g, "timing_information", None) if g is not None else None
+                getattr(quart_g, "timing_information", None) if quart_g is not None else None
             )
             if timing_information is None:
                 return response
@@ -179,6 +181,11 @@ class QuartDashServer(BaseDashServer):
                 if inspect.iscoroutine(result):  # Allow async hooks
                     await result
             return response
+
+    def has_request_context(self) -> bool:
+        if has_request_context is None:
+            raise RuntimeError("Quart not installed; cannot check request context")
+        return has_request_context()
 
     def run(self, dash_app: Dash, host: str, port: int, debug: bool, **kwargs: _t.Any):
         self.config = {"debug": debug, **kwargs} if debug else kwargs
