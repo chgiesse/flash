@@ -18,7 +18,7 @@ try:
         request,
         Blueprint,
         g as quart_g,
-        has_request_context
+        has_request_context,
     )
 except ImportError:
     Quart = None
@@ -95,7 +95,6 @@ class QuartDashServer(BaseDashServer):
             return Response(tb, status=500, content_type="text/html")
 
     def register_timing_hooks(self, _first_run: bool):  # type: ignore[name-defined] parity with Flask factory
-
         @self.server.before_request
         async def _before_request():  # pragma: no cover - timing infra
             if quart_g is not None:
@@ -106,7 +105,9 @@ class QuartDashServer(BaseDashServer):
         @self.server.after_request
         async def _after_request(response):  # pragma: no cover - timing infra
             timing_information = (
-                getattr(quart_g, "timing_information", None) if quart_g is not None else None
+                getattr(quart_g, "timing_information", None)
+                if quart_g is not None
+                else None
             )
             if timing_information is None:
                 return response
@@ -320,7 +321,7 @@ class QuartDashServer(BaseDashServer):
             Compress = quart_compress.Compress
             Compress(self.server)
             _flask_compress_version = parse_version(
-                _get_distribution_version("flask_compress")
+                _get_distribution_version("quart_compress")
             )
             if not hasattr(
                 self.server.config, "COMPRESS_ALGORITHM"
@@ -330,6 +331,7 @@ class QuartDashServer(BaseDashServer):
             raise ImportError(
                 "To use the compress option, you need to install quart_compress."
             ) from error
+
 
 class QuartRequestAdapter:
     def __init__(self) -> None:

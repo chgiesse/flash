@@ -54,7 +54,7 @@ from ._utils import (
     hooks_to_js_object,
     parse_version,
     get_caller_name,
-    get_root_path
+    get_root_path,
 )
 from . import _callback
 from . import _get_paths
@@ -651,7 +651,7 @@ class Dash(ObsoleteChecker):
             self.config.assets_folder,
         )
         if config.compress:
-           self.backend.enable_compression()  # type: ignore
+            self.backend.enable_compression()  # type: ignore
 
         self.backend.register_error_handlers()
         self.backend.before_request(self._setup_server)
