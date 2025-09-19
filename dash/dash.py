@@ -18,7 +18,6 @@ from urllib.parse import urlparse
 from typing import Any, Callable, Dict, Optional, Union, Sequence, Literal, List
 
 import asyncio
-import flask
 
 from importlib_metadata import version as _get_distribution_version
 
@@ -55,6 +54,7 @@ from ._utils import (
     hooks_to_js_object,
     parse_version,
     get_caller_name,
+    get_root_path
 )
 from . import _callback
 from . import _get_paths
@@ -458,7 +458,7 @@ class Dash(ObsoleteChecker):
         self.config = AttributeDict(
             name=caller_name,
             assets_folder=os.path.join(
-                flask.helpers.get_root_path(caller_name), assets_folder
+                get_root_path(caller_name), assets_folder
             ),  # type: ignore
             assets_url_path=assets_url_path,
             assets_ignore=assets_ignore,
