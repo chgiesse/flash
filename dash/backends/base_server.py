@@ -127,3 +127,7 @@ class BaseDashServer(ABC):
     @abstractmethod
     def jsonify(self, obj) -> Any:  # pragma: no cover - interface
         pass
+
+    @abstractmethod
+    def enable_compression(self) -> None:  # pragma: no cover - interface
+        pass

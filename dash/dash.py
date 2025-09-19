@@ -651,22 +651,7 @@ class Dash(ObsoleteChecker):
             self.config.assets_folder,
         )
         if config.compress:
-            try:
-                import flask_compress  # pylint: disable=import-outside-toplevel
-
-                Compress = flask_compress.Compress
-                Compress(self.server)
-                _flask_compress_version = parse_version(
-                    _get_distribution_version("flask_compress")
-                )
-                if not hasattr(
-                    self.server.config, "COMPRESS_ALGORITHM"
-                ) and _flask_compress_version >= parse_version("1.6.0"):
-                    self.server.config["COMPRESS_ALGORITHM"] = ["gzip"]
-            except ImportError as error:
-                raise ImportError(
-                    "To use the compress option, you need to install dash[compress]"
-                ) from error
+           self.backend.enable_compression()  # type: ignore
 
         self.backend.register_error_handlers()
         self.backend.before_request(self._setup_server)

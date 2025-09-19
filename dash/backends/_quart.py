@@ -1,4 +1,5 @@
 from __future__ import annotations
+from importlib_metadata import version as _get_distribution_version
 from contextvars import copy_context
 import typing as _t
 import mimetypes
@@ -29,6 +30,7 @@ except ImportError:
 
 from dash.exceptions import PreventUpdate, InvalidResourceError
 from dash.fingerprint import check_fingerprint
+from dash._utils import parse_version
 from dash import _validate, Dash
 from .base_server import BaseDashServer
 from ._utils import format_traceback_html
@@ -311,6 +313,23 @@ class QuartDashServer(BaseDashServer):
             pkgutil.get_data("dash", "favicon.ico"), content_type="image/x-icon"
         )
 
+    def enable_compression(self) -> None:
+        try:
+            import quart_compress  # pylint: disable=import-outside-toplevel
+
+            Compress = quart_compress.Compress
+            Compress(self.server)
+            _flask_compress_version = parse_version(
+                _get_distribution_version("flask_compress")
+            )
+            if not hasattr(
+                self.server.config, "COMPRESS_ALGORITHM"
+            ) and _flask_compress_version >= parse_version("1.6.0"):
+                self.server.config["COMPRESS_ALGORITHM"] = ["gzip"]
+        except ImportError as error:
+            raise ImportError(
+                "To use the compress option, you need to install quart_compress."
+            ) from error
 
 class QuartRequestAdapter:
     def __init__(self) -> None:

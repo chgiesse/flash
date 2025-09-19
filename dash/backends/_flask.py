@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextvars import copy_context
+from importlib_metadata import version as _get_distribution_version
 from typing import TYPE_CHECKING, Any, Callable, Dict
 import asyncio
 import pkgutil
@@ -24,7 +25,9 @@ from dash.fingerprint import check_fingerprint
 from dash import _validate
 from dash.exceptions import PreventUpdate, InvalidResourceError
 from dash._callback import _invoke_callback, _async_invoke_callback
+from dash._utils import parse_version
 from .base_server import BaseDashServer, RequestAdapter
+
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from dash import Dash
@@ -307,6 +310,24 @@ class FlaskDashServer(BaseDashServer):
             self.server.add_url_rule(
                 route, endpoint=endpoint, view_func=view_func, methods=methods
             )
+
+    def enable_compression(self) -> None:
+        try:
+            import flask_compress  # pylint: disable=import-outside-toplevel
+
+            Compress = flask_compress.Compress
+            Compress(self.server)
+            _flask_compress_version = parse_version(
+                _get_distribution_version("flask_compress")
+            )
+            if not hasattr(
+                self.server.config, "COMPRESS_ALGORITHM"
+            ) and _flask_compress_version >= parse_version("1.6.0"):
+                self.server.config["COMPRESS_ALGORITHM"] = ["gzip"]
+        except ImportError as error:
+            raise ImportError(
+                "To use the compress option, you need to install dash[compress]"
+            ) from error
 
 
 class FlaskRequestAdapter(RequestAdapter):
