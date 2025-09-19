@@ -321,6 +321,12 @@ class FlaskRequestAdapter(RequestAdapter):
         return self
 
     @property
+    def context(self):
+        if not has_request_context():
+            raise RuntimeError("No active request in context")
+        return flask_g
+
+    @property
     def args(self):
         return self._request.args
 

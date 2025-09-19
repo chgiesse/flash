@@ -451,6 +451,13 @@ class FastAPIRequestAdapter(RequestAdapter):
         return self
 
     @property
+    def context(self):
+        if self._request is None:
+            raise RuntimeError("No active request in context")
+
+        return self._request.state
+
+    @property
     def root(self):
         return str(self._request.base_url)
 

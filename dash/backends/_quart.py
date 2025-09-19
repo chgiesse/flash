@@ -319,6 +319,12 @@ class QuartRequestAdapter:
             raise RuntimeError("Quart not installed; cannot access request context")
 
     @property
+    def context(self):
+        if not has_request_context():
+            raise RuntimeError("No active request in context")
+        return quart_g
+
+    @property
     def request(self) -> _t.Any:
         return self._request
 
