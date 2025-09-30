@@ -445,7 +445,7 @@ class FastAPIDashServer(BaseDashServer):
 
         self.server.add_middleware(GZipMiddleware, minimum_size=500)
         config = _load_config()
-        if not hasattr(config, "COMPRESS_ALGORITHM"):
+        if "COMPRESS_ALGORITHM" not in config:
             config["COMPRESS_ALGORITHM"] = ["gzip"]
 
         _save_config(config)
