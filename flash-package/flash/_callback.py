@@ -58,6 +58,7 @@ class NoUpdate:
 GLOBAL_CALLBACK_LIST = []
 GLOBAL_CALLBACK_MAP = {}
 GLOBAL_INLINE_SCRIPTS = []
+GLOBAL_API_PATHS = {}
 
 
 # pylint: disable=too-many-locals
@@ -73,6 +74,7 @@ def callback(
     cache_args_to_ignore: Optional[list] = None,
     cache_ignore_triggered=True,
     on_error: Optional[Callable[[Exception], Any]] = None,
+    api_endpoint: Optional[str] = None,
     optional: Optional[bool] = False,
     hidden: Optional[bool] = False,
     **_kwargs,
@@ -156,6 +158,14 @@ def callback(
             Mark all dependencies as not required on the initial layout checks.
         :param hidden:
             Hide the callback from the devtools callbacks tab.
+        :param api_endpoint:
+            If provided, the callback will be available at the given API endpoint.
+            This allows you to call the callback directly through HTTP requests
+            instead of through the Dash front-end. The endpoint should be a string
+            that starts with a forward slash (e.g. `/my_callback`).
+            The endpoint is relative to the Dash app's base URL.
+            Note that the endpoint will not appear in the list of registered
+            callbacks in the Dash devtools.
     """
 
     background_spec = None
@@ -208,6 +218,7 @@ def callback(
         manager=manager,
         running=running,
         on_error=on_error,
+        api_endpoint=api_endpoint,
         optional=optional,
         hidden=hidden,
     )
@@ -576,7 +587,11 @@ def _prepare_response(
 
 # pylint: disable=too-many-branches,too-many-statements
 def register_callback(
-    callback_list, callback_map, config_prevent_initial_callbacks, *_args, **_kwargs
+    callback_list,
+    callback_map,
+    config_prevent_initial_callbacks,
+    *_args,
+    **_kwargs,
 ):
     (
         output,
@@ -631,6 +646,9 @@ def register_callback(
 
     # pylint: disable=too-many-locals
     def wrap_func(func):
+        if _kwargs.get("api_endpoint"):
+            api_endpoint = _kwargs.get("api_endpoint")
+            GLOBAL_API_PATHS[api_endpoint] = func
 
         if background is not None:
             background_key = BaseBackgroundCallbackManager.register_func(

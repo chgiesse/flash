@@ -604,6 +604,7 @@ class Flash(ObsoleteChecker):
         self.callback_map = {}
         # same deps as a list to catch duplicate outputs, and to send to the front end
         self._callback_list = []
+        self.callback_api_paths = {}
 
         # list of inline scripts
         self._inline_scripts = []
@@ -823,6 +824,43 @@ class Flash(ObsoleteChecker):
 
         # catch-all for front-end routes, used by dcc.Location
         self._add_url("<path:path>", self.index)
+
+    def setup_apis(self):
+        """
+        Register API endpoints for all callbacks defined using `dash.callback`.
+        This method must be called after all callbacks are registered and before the app is served.
+        It ensures that all callback API routes are available for the Dash app to function correctly.
+        Typical usage:
+            app = Dash(__name__)
+            # Register callbacks here
+            app.setup_apis()
+            app.run()
+        If not called, callback endpoints will not be available and the app will not function as expected.
+        """
+        for k in list(_callback.GLOBAL_API_PATHS):
+            if k in self.callback_api_paths:
+                raise DuplicateCallback(
+                    f"The callback `{k}` provided with `dash.callback` was already "
+                    "assigned with `app.callback`."
+                )
+            self.callback_api_paths[k] = _callback.GLOBAL_API_PATHS.pop(k)
+
+        def make_parse_body_async(func):
+            async def _parse_body_async():
+                if quart.request.is_json:
+                    data = await quart.request.get_json()
+                    result = await func(**data)
+                    return quart.jsonify(result)
+                return quart.jsonify({})
+
+            return _parse_body_async
+
+        for path, func in self.callback_api_paths.items():
+            if asyncio.iscoroutinefunction(func):
+                self._add_url(path, make_parse_body_async(func), ["POST"])
+            raise RuntimeError(
+                f"The callback function for path {path} must be async."
+            )
 
     def _setup_plotlyjs(self):
         # pylint: disable=import-outside-toplevel
@@ -1394,6 +1432,7 @@ class Flash(ObsoleteChecker):
             config_prevent_initial_callbacks=self.config.prevent_initial_callbacks,
             callback_list=self._callback_list,
             callback_map=self.callback_map,
+            callback_api_paths=self.callback_api_paths,
             **_kwargs,
         )
 
