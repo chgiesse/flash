@@ -68,6 +68,7 @@ from dash import _get_paths
 from . import _callback
 from . import _watch
 from . import _get_app
+from ._get_app import with_app_context_async, with_app_context_factory
 
 from dash._grouping import map_grouping, grouping_len, update_args_group
 from dash._obsolete import ObsoleteChecker
@@ -814,7 +815,11 @@ class Flash(ObsoleteChecker):
             )
 
         for hook in self._hooks.get_hooks("routes"):
-            self._add_url(hook.data["name"], hook.func, hook.data["methods"])
+            self._add_url(
+                hook.data["name"],
+                with_app_context_factory(hook.func, self),
+                hook.data["methods"]
+            )
 
         # catch-all for front-end routes, used by dcc.Location
         self._add_url("<path:path>", self.index)
@@ -878,6 +883,7 @@ class Flash(ObsoleteChecker):
         _validate.validate_index("index string", checks, value)
         self._index_string = value
 
+    @with_app_context_async
     async def serve_layout(self):
         layout = self._layout_value()
 
@@ -1173,6 +1179,7 @@ class Flash(ObsoleteChecker):
 
         return response
 
+    @with_app_context_async
     async def index(self, *args, **kwargs):  # pylint: disable=unused-argument
         scripts = self._generate_scripts_html()
         css = self._generate_css_dist_html()
@@ -1286,6 +1293,7 @@ class Flash(ObsoleteChecker):
             app_entry=app_entry,
         )
 
+    @with_app_context_async
     async def dependencies(self):
         return quart.Response(
             to_json(self._callback_list),
@@ -1494,6 +1502,7 @@ class Flash(ObsoleteChecker):
         return partial_func
 
     # pylint: disable=R0915
+    @with_app_context_async
     async def async_dispatch(self):
         body = await quart.request.get_json()
         g = self._initialize_context(body)
@@ -1824,7 +1833,11 @@ class Flash(ObsoleteChecker):
         Initialize the startup routes stored in STARTUP_ROUTES.
         """
         for _name, _view_func, _methods in self.STARTUP_ROUTES:
-            self._add_url(f"_dash_startup_route/{_name}", _view_func, _methods)
+            self._add_url(
+                f"_dash_startup_route/{_name}",
+                with_app_context_factory(_view_func, self),
+                _methods
+            )
         self.STARTUP_ROUTES = []
 
     def _setup_dev_tools(self, **kwargs):
