@@ -73,6 +73,8 @@ def callback(
     cache_args_to_ignore: Optional[list] = None,
     cache_ignore_triggered=True,
     on_error: Optional[Callable[[Exception], Any]] = None,
+    optional: Optional[bool] = False,
+    hidden: Optional[bool] = False,
     **_kwargs,
 ):
     """
@@ -150,6 +152,10 @@ def callback(
             Function to call when the callback raises an exception. Receives the
             exception object as first argument. The callback_context can be used
             to access the original callback inputs, states and output.
+        :param optional:
+            Mark all dependencies as not required on the initial layout checks.
+        :param hidden:
+            Hide the callback from the devtools callbacks tab.
     """
 
     background_spec = None
@@ -202,6 +208,8 @@ def callback(
         manager=manager,
         running=running,
         on_error=on_error,
+        optional=optional,
+        hidden=hidden,
     )
 
 
@@ -247,6 +255,8 @@ def insert_callback(
     running=None,
     dynamic_creator: Optional[bool] = False,
     no_output=False,
+    optional=False,
+    hidden=False,
 ):
     if prevent_initial_call is None:
         prevent_initial_call = config_prevent_initial_callbacks
@@ -270,6 +280,8 @@ def insert_callback(
         },
         "dynamic_creator": dynamic_creator,
         "no_output": no_output,
+        "optional": optional,
+        "hidden": hidden,
     }
     if running:
         callback_spec["running"] = running
@@ -613,6 +625,8 @@ def register_callback(
         dynamic_creator=allow_dynamic_callbacks,
         running=running,
         no_output=not has_output,
+        optional=_kwargs.get("optional", False),
+        hidden=_kwargs.get("hidden", False),
     )
 
     # pylint: disable=too-many-locals
