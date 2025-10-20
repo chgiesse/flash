@@ -2598,3 +2598,14 @@ class Flash(ObsoleteChecker):
             )
             response.timeout = None  # Disable timeout for SSE
             return response
+
+    def __call__(self, *args, **kwargs):
+        """
+        Make Flash instances callable by the ASGI/WSGI server.
+
+        Quart apps are ASGI applications (scope, receive, send) whereas older
+        Flask-based apps used the WSGI (environ, start_response) interface.
+        Delegate directly to the underlying Quart app, passing through whatever
+        positional and keyword arguments the server provides.
+        """
+        return self.server(*args, **kwargs)
