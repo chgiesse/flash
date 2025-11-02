@@ -9,8 +9,6 @@ from os.path import isfile, join
 from pathlib import Path
 from urllib.parse import parse_qs
 
-import flask
-
 from . import _validate
 from ._callback_context import context_value
 from ._get_app import get_app
@@ -155,9 +153,7 @@ def _set_redirect(redirect_from, path):
     if redirect_from and len(redirect_from):
         for redirect in redirect_from:
             fullname = app.get_relative_path(redirect)
-            app.backend.add_redirect_rule(
-                app, fullname, app.get_relative_path(path)
-            )
+            app.backend.add_redirect_rule(app, fullname, app.get_relative_path(path))
 
 
 def register_page(
