@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dash-flash"
-version = "1.3.1"
+version = "1.3.2"
 description = "Flash - async port of the Dash framework"
 authors = ["chgiesse"]
 license = "MIT"

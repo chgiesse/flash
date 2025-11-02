@@ -3,7 +3,7 @@ from ._utils import recursive_to_plotly_json
 from ._callback import clientside_callback
 from .SSE import SSE
 from dataclasses import dataclass
-from dash import html, State
+from dash import html, State, Output
 from dash.dependencies import DashDependency
 from dash.dcc import Store
 from dash._get_paths import get_relative_path
@@ -208,6 +208,7 @@ def generate_clientside_callback(input_ids, sse_callback_id, prevent_initial_cal
                     url: "{sse_url}",
                 }}
             );
+            {"" if prevent_initial_call else "return window.dash_clientside.no_update;"}
         }}
     """
 
@@ -320,11 +321,19 @@ def event_callback(
         clientside_function = generate_clientside_callback(
             param_names, callback_id, prevent_initial_call, sse_url
         )
-        clientside_callback(
-            clientside_function,
-            *dependencies,
-            prevent_initial_call=prevent_initial_call,
-        )
+        if not prevent_initial_call:
+            clientside_callback(
+                clientside_function,
+                Output(SSECallbackComponent.ids.sse(callback_id), "url"),
+                *dependencies,
+                prevent_initial_call=prevent_initial_call,
+            )
+        else:
+            clientside_callback(
+                clientside_function,
+                *dependencies,
+                prevent_initial_call=prevent_initial_call,
+            )
 
         if cancel:
             sse_state = (
