@@ -19,7 +19,7 @@ try:
         Blueprint,
         g as quart_g,
         has_request_context,
-        redirect
+        redirect,
     )
 except ImportError:
     Quart = None
