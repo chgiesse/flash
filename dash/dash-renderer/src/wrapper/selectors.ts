@@ -43,13 +43,25 @@ const isFirstLevelPropsChild = (
 };
 
 function determineChangedProps(
-    state: any,
+    layoutHashes: any,
     strPath: string
 ): ChangedPropsRecord {
     let combinedHash = 0;
     let renderType: any; // Default render type, adjust as needed
     const changedProps: Record<string, any> = {};
-    Object.entries(state.layoutHashes).forEach(([updatedPath, pathHash]) => {
+    const relevantPaths = pathOr([], ['index', strPath], layoutHashes);
+    const entries = layoutHashes.entries || {};
+    const pathsToCheck = relevantPaths.length
+        ? relevantPaths
+        : entries[strPath]
+        ? [strPath]
+        : [];
+
+    pathsToCheck.forEach(updatedPath => {
+        const pathHash = entries[updatedPath];
+        if (!pathHash) {
+            return;
+        }
         const [descendant, remainingSegments] = isFirstLevelPropsChild(
             updatedPath,
             strPath
@@ -91,9 +103,9 @@ export const selectDashProps =
 
         let hash;
         if (checkDashChildrenUpdate(c)) {
-            hash = determineChangedProps(state, strPath);
+            hash = determineChangedProps(state.layoutHashes, strPath);
         } else {
-            hash = state.layoutHashes[strPath];
+            hash = pathOr(undefined, ['entries', strPath], state.layoutHashes);
         }
         let h = 0;
         let changedProps: object = {};
