@@ -1,4 +1,10 @@
-import React, {useCallback, MutableRefObject, useRef, useMemo} from 'react';
+import React, {
+    useCallback,
+    MutableRefObject,
+    useRef,
+    useMemo,
+    useEffect
+} from 'react';
 import {
     path,
     concat,
@@ -64,6 +70,9 @@ function DashWrapper({
 }: DashWrapperProps) {
     const dispatch = useDispatch();
     const memoizedKeys: MutableRefObject<MemoizedKeysType> = useRef({});
+    const hydrationCache = useRef<Map<string, React.ReactNode | null>>(
+        new Map()
+    );
     const newRender = useRef(false);
     const renderedPath = useRef<DashLayoutPath>(componentPath);
     let renderComponent: any = null;
@@ -81,18 +90,35 @@ function DashWrapper({
     renderComponentProps = componentProps;
     renderH = h;
 
-    useMemo(() => {
+    const pathKey = useMemo(
+        () => stringifyPath(componentPath),
+        [componentPath]
+    );
+
+    useEffect(() => {
+        renderedPath.current = componentPath;
+    }, [componentPath]);
+
+    useEffect(() => {
+        const cache = hydrationCache.current;
         if (_newRender) {
             newRender.current = true;
             renderH = 0;
+            // purge any cached hydration for this path so the next render rebuilds
+            const toDelete: string[] = [];
+            cache.forEach((_, key) => {
+                if (key.startsWith(`${pathKey}|`)) {
+                    toDelete.push(key);
+                }
+            });
+            toDelete.forEach(key => cache.delete(key));
             if (renderH in memoizedKeys.current) {
                 delete memoizedKeys.current[renderH];
             }
         } else {
             newRender.current = false;
         }
-        renderedPath.current = componentPath;
-    }, [_newRender]);
+    }, [_newRender, pathKey]);
 
     const setProps = (newProps: UpdatePropsPayload) => {
         const {id} = renderComponentProps;
@@ -432,6 +458,8 @@ function DashWrapper({
         return props;
     };
 
+    const hydrationKey = `${pathKey}|${renderH}`;
+
     const hydrateFunc = () => {
         if (newRender.current) {
             renderComponent = _passedComponent;
@@ -459,7 +487,7 @@ function DashWrapper({
         }
         newRender.current = false;
 
-        return config.props_check ? (
+        const hydratedElement = config.props_check ? (
             <CheckedComponent
                 element={element}
                 props={hydratedProps}
@@ -475,17 +503,38 @@ function DashWrapper({
         ) : (
             createElement(element, hydratedProps, extraProps, hydratedChildren)
         );
+
+        return hydratedElement;
     };
 
     let hydrated = null;
-    if (renderH in memoizedKeys.current && !newRender.current) {
-        hydrated = React.isValidElement(memoizedKeys.current[renderH])
-            ? memoizedKeys.current[renderH]
-            : null;
+    if (!newRender.current) {
+        const cachedHydration = hydrationCache.current.get(hydrationKey);
+        if (cachedHydration !== undefined) {
+            hydrated = cachedHydration;
+        } else if (renderH in memoizedKeys.current) {
+            const memoized = memoizedKeys.current[renderH];
+            hydrated = React.isValidElement(memoized) ? memoized : null;
+        }
     }
     if (!hydrated) {
         hydrated = hydrateFunc();
-        memoizedKeys.current = {[renderH]: hydrated};
+        memoizedKeys.current[renderH] = hydrated;
+    }
+
+    if (!newRender.current && hydrationKey) {
+        const cache = hydrationCache.current;
+        if (!cache.has(hydrationKey)) {
+            // Maintain insertion order to implement a simple LRU eviction.
+            cache.set(hydrationKey, hydrated);
+            const MAX_CACHE_SIZE = 50;
+            if (cache.size > MAX_CACHE_SIZE) {
+                const firstKey = cache.keys().next().value;
+                cache.delete(firstKey);
+            }
+        } else if (hydrated !== cache.get(hydrationKey)) {
+            cache.set(hydrationKey, hydrated);
+        }
     }
 
     return renderComponent ? (
