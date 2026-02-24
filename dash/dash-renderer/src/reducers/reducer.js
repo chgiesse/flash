@@ -27,7 +27,12 @@ export const apiRequests = [
     'loginRequest'
 ];
 
-const layoutHashes = (state = {}, action) => {
+const initialLayoutHashState = {
+    entries: {},
+    index: {}
+};
+
+const layoutHashes = (state = initialLayoutHashState, action) => {
     if (
         includes(action.type, [
             'UNDO_PROP_CHANGE',
@@ -39,16 +44,33 @@ const layoutHashes = (state = {}, action) => {
         // render on the parent containers.
         const actionPath = action.payload.itempath;
         const strPath = stringifyPath(actionPath);
-        const prev = pathOr(0, [strPath, 'hash'], state);
-        state = assoc(
+        const prevHash = pathOr(0, ['entries', strPath, 'hash'], state);
+
+        const nextEntries = assoc(
             strPath,
             {
-                hash: prev + 1,
+                hash: prevHash + 1,
                 changedProps: action.payload.props,
                 renderType: action.payload.renderType
             },
-            state
+            state.entries
         );
+
+        const segments = strPath.split(',');
+        let current = '';
+        const nextIndex = {...state.index};
+        for (let i = 0; i < segments.length; i++) {
+            current = current ? `${current},${segments[i]}` : segments[i];
+            const existing = pathOr([], [current], nextIndex);
+            if (!existing.includes(strPath)) {
+                nextIndex[current] = existing.concat(strPath);
+            }
+        }
+
+        state = {
+            entries: nextEntries,
+            index: nextIndex
+        };
     }
     return state;
 };
