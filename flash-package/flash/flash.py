@@ -470,6 +470,10 @@ class Flash(ObsoleteChecker):
         an exception is raised. Receives the exception object as first argument.
         The callback_context can be used to access the original callback inputs,
         states and output.
+
+    :param health_endpoint: Path for the health check endpoint. Set to None to
+        disable the health endpoint. Default is None.
+    :type health_endpoint: string or None
     """
 
     _plotlyjs_url: str
@@ -514,6 +518,7 @@ class Flash(ObsoleteChecker):
         routing_callback_inputs: Optional[Dict[str, Union[Input, State]]] = None,
         description: Optional[str] = None,
         on_error: Optional[Callable[[Exception], Any]] = None,
+        health_endpoint: Optional[str] = None,
         **obsolete,
     ):
         router = obsolete.pop("router", None)
@@ -572,6 +577,8 @@ class Flash(ObsoleteChecker):
             update_title=update_title,
             include_pages_meta=include_pages_meta,
             description=description,
+            health_endpoint=health_endpoint,
+            hide_all_callbacks=False,
         )
         self.config.set_read_only(
             [
@@ -808,6 +815,8 @@ class Flash(ObsoleteChecker):
         self._add_url("_dash-update-component", self.async_dispatch, ["POST"])
         self._add_url("_reload-hash", self.serve_reload_hash)
         self._add_url("_favicon.ico", self._serve_default_favicon)
+        if self.config.health_endpoint is not None:
+            self._add_url(self.config.health_endpoint, self.serve_health)
         self._add_url("", self.index)
 
         if jupyter_dash.active:
@@ -856,7 +865,7 @@ class Flash(ObsoleteChecker):
             return _parse_body_async
 
         for path, func in self.callback_api_paths.items():
-            if asyncio.iscoroutinefunction(func):
+            if inspect.iscoroutinefunction(func):
                 self._add_url(path, make_parse_body_async(func), ["POST"])
             raise RuntimeError(
                 f"The callback function for path {path} must be async."
@@ -991,6 +1000,13 @@ class Flash(ObsoleteChecker):
             }
         )
 
+    async def serve_health(self):
+        """
+        Health check endpoint for monitoring Dash server status.
+        Returns a simple "OK" response with HTTP 200 status.
+        """
+        return quart.Response("OK", status=200, mimetype="text/plain")
+
     def get_dist(self, libraries):
         dists = []
         for dist_type in ("_js_dist", "_css_dist"):
@@ -1000,7 +1016,10 @@ class Flash(ObsoleteChecker):
                 dists.append(dict(type=dist_type, url=src))
         return dists
 
-    def _collect_and_register_resources(self, resources, include_async=True):
+        # pylint: disable=too-many-branches
+    def _collect_and_register_resources(
+        self, resources, include_async=True, url_attr="src"
+    ):
         # now needs the app context.
         # template in the necessary component suite JS bundles
         # add the version number of the package as a query parameter
@@ -1043,36 +1062,46 @@ class Flash(ObsoleteChecker):
                     self.registered_paths[resource["namespace"]].add(rel_path)
 
                     if not is_dynamic_resource and not excluded:
-                        srcs.append(
-                            _relative_url_path(
-                                relative_package_path=rel_path,
-                                namespace=resource["namespace"],
-                            )
+                        url = _relative_url_path(
+                            relative_package_path=rel_path,
+                            namespace=resource["namespace"],
                         )
+                        if "attributes" in resource:
+                            srcs.append({url_attr: url, **resource["attributes"]})
+                        else:
+                            srcs.append(url)
+
             elif "external_url" in resource:
                 if not is_dynamic_resource and not excluded:
-                    if isinstance(resource["external_url"], str):
-                        srcs.append(resource["external_url"])
-                    else:
-                        srcs += resource["external_url"]
+                    urls = (
+                        [resource["external_url"]]
+                        if isinstance(resource["external_url"], str)
+                        else resource["external_url"]
+                    )
+                    for url in urls:
+                        if "attributes" in resource:
+                            srcs.append({url_attr: url, **resource["attributes"]})
+                        else:
+                            srcs.append(url)
+
             elif "absolute_path" in resource:
                 raise Exception("Serving files from absolute_path isn't supported yet")
             elif "asset_path" in resource:
                 static_url = self.get_asset_url(resource["asset_path"])
+                url_with_cache = static_url + f"?m={resource['ts']}"
                 # Import .mjs files with type=module script tag
                 if static_url.endswith(".mjs"):
-                    srcs.append(
-                        {
-                            "src": static_url
-                            + f"?m={resource['ts']}",  # Add a cache-busting query param
-                            "type": "module",
-                        }
-                    )
+                    attrs = {url_attr: url_with_cache, "type": "module"}
+                    if "attributes" in resource:
+                        attrs.update(resource["attributes"])
+                    srcs.append(attrs)
                 else:
-                    srcs.append(
-                        static_url + f"?m={resource['ts']}"
-                    )  # Add a cache-busting query param
-
+                    if "attributes" in resource:
+                        srcs.append(
+                            {url_attr: url_with_cache, **resource["attributes"]}
+                        )
+                    else:
+                        srcs.append(url_with_cache)
         return srcs
 
     # pylint: disable=protected-access
@@ -1080,7 +1109,8 @@ class Flash(ObsoleteChecker):
         external_links = self.config.external_stylesheets
         links = self._collect_and_register_resources(
             self.css.get_all_css()
-            + self.css._resources._filter_resources(self._hooks.hooks._css_dist)
+            + self.css._resources._filter_resources(self._hooks.hooks._css_dist),
+            url_attr="href",
         )
 
         return "\n".join(
@@ -1598,6 +1628,16 @@ class Flash(ObsoleteChecker):
             self.callback_map[k] = _callback.GLOBAL_CALLBACK_MAP.pop(k)
 
         self._callback_list.extend(_callback.GLOBAL_CALLBACK_LIST)
+
+        # For each callback function, if the hidden parameter uses the default value None,
+        # replace it with the actual value of the self.config.hide_all_callbacks.
+        self._callback_list = [
+            {**_callback, "hidden": self.config.get("hide_all_callbacks", False)}
+            if _callback.get("hidden") is None
+            else _callback
+            for _callback in self._callback_list
+        ]
+
         _callback.GLOBAL_CALLBACK_LIST.clear()
 
         _validate.validate_background_callbacks(self.callback_map)
@@ -2202,6 +2242,7 @@ class Flash(ObsoleteChecker):
         port: Optional[Union[str, int]] = None,
         proxy: Optional[str] = None,
         debug: Optional[bool] = None,
+        hide_all_callbacks: bool = False,
         dev_tools_ui: Optional[bool] = None,
         dev_tools_props_check: Optional[bool] = None,
         dev_tools_serve_dev_bundles: Optional[bool] = None,
@@ -2239,6 +2280,14 @@ class Flash(ObsoleteChecker):
         :param debug: Set Quart debug mode and enable dev tools.
             env: ``DASH_DEBUG``
         :type debug: bool
+
+        :param hide_all_callbacks: Default ``False``: Sets the default value of
+            ``hidden`` for all callbacks added to the app. Normally all callbacks
+            are visible in the devtools callbacks tab. You can set this for
+            individual callbacks by setting ``hidden`` in their definitions, or set
+            it ``True`` here in which case you must explicitly set it ``False`` for
+            those callbacks you wish to remain visible in the devtools callbacks tab.
+        :type hide_all_callbacks: bool
 
         :param debug: Enable/disable all the dev tools unless overridden by the
             arguments or environment variables. Default is ``True`` when
@@ -2318,6 +2367,9 @@ class Flash(ObsoleteChecker):
 
         loop = asyncio.get_event_loop()
         loop.set_exception_handler(exception_handler)
+
+        # Update self.config.hide_all_callbacks
+        self.config.update({"hide_all_callbacks": hide_all_callbacks})
 
         if debug is None:
             debug = get_combined_config("debug", None, False)
@@ -2430,6 +2482,7 @@ class Flash(ObsoleteChecker):
                 Output(_ID_STORE, "data"),
                 inputs=inputs,
                 prevent_initial_call=True,
+                hidden=True,
             )
             async def update(pathname_, search_, **states):
                 """

@@ -1,3 +1,4 @@
+import inspect
 import traceback
 from contextvars import copy_context
 import asyncio
@@ -292,7 +293,7 @@ def _make_job_fn(fn, cache, progress):
             if not errored:
                 cache.set(result_key, user_callback_output)
 
-        if asyncio.iscoroutinefunction(fn):
+        if inspect.iscoroutinefunction(fn):
             func = partial(ctx.run, async_run)
             asyncio.run(func())
         else:
